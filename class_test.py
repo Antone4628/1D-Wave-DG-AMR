@@ -8,7 +8,7 @@ Uses the DGWaveSolver class for the core numerical solution.
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from numerical.solvers.dg_wave_solver import DGWaveSolver
+from numerical.solvers.dg_wave_solver_documented import DGWaveSolver
 
 # Define initial mesh
 xelem = np.array([-1, -0.4, 0, 0.4, 1])
