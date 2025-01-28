@@ -106,13 +106,13 @@ if __name__ == "__main__":
     solver = DGWaveSolver(
         nop=4,
         xelem=xelem,
-        max_elements = 40,
+        max_elements = 25,
         max_level=4,
         courant_max=0.1,
         icase=1  # Gaussian test case
     )
     
-    env = DGAMREnv(solver=solver, gamma_c=25.0)
+    env = DGAMREnv(solver=solver, element_budget=25, gamma_c=25.0)
     
     # Run tests
     initial_obs = test_reset()

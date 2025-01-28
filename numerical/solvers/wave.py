@@ -6,7 +6,7 @@ from ..dg.matrices import create_mass_matrix, create_diff_matrix, Fmatrix_upwind
 from ..dg.basis import *
 from ..grid.mesh import create_grid_us
 from ..amr.forest import forest, mark
-from ..amr.adapt import adapt_mesh, adapt_sol
+from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, get_element_neighbors
 from ..amr.projection import*
 from .utils import *
 
@@ -170,6 +170,8 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
         while(level <= max_level):
         #     # Get refinement marks
             marks = mark(active, label_mat, intma, qp, criterion)
+
+            marks = enforce_2_1_balance(label_mat, info_mat, active, marks)
 
             pre_marks = marks
             pre_active = active  

@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 Training script for DG AMR using A2C.
 Implements training procedure following Foucart et al. (2023).
@@ -10,113 +12,115 @@ from stable_baselines3.common.env_checker import check_env
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.callbacks import BaseCallback
 
-# Import your modules - adjust these paths based on your project structure
-# Assuming scripts/ is at the same level as numerical/
 import sys
-sys.path.append('..')  # Add parent directory to path
-
+# Get absolute path to project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, PROJECT_ROOT)
 from numerical.solvers.dg_wave_solver import DGWaveSolver
 from numerical.environments.dg_amr_env import DGAMREnv
 
+class TensorboardCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+
+    def _on_step(self):
+        # Log environment info
+        info = self.locals['infos'][0]
+        self.logger.record('environment/n_elements', info['n_elements'])
+        self.logger.record('environment/resource_usage', info['resource_usage'])
+        
+        # Log episode rewards
+        self.logger.record('rewards/ep_rew_mean', self.locals['ep_info_buffer'][0]['r']) if len(self.locals['ep_info_buffer']) > 0 else None
+        
+        # Log losses
+        self.logger.record('losses/value_loss', self.locals['values_losses'][0])
+        self.logger.record('losses/policy_loss', self.locals['policy_loss'][0])
+        
+        self.logger.dump(step=self.num_timesteps)
+        return True
+
 def make_env():
-    """Create and initialize environment."""
-    # Initialize solver
     xelem = np.array([-1, -0.4, 0, 0.4, 1])
     solver = DGWaveSolver(
         nop=4,
         xelem=xelem,
+        max_elements = 25,
         max_level=4,
+        courant_max=0.1,
         icase=1
     )
     
-    # Create environment
-    env = DGAMREnv(solver=solver, gamma_c=25.0)
-    
-    # Wrap environment for training
+    env = DGAMREnv(solver=solver, element_budget=25, gamma_c=25.0)
     env = Monitor(env)
     
     return env
 
-def train_a2c():
-    """Train A2C model for AMR."""
-    # Create environment
+def train_a2c(total_timesteps=1000):
     env = make_env()
-    
-    # Verify environment
     check_env(env)
-    
-    # Wrap in vectorized environment (required by Stable-Baselines3)
     env = DummyVecEnv([lambda: env])
     
-    # Normalize observations and rewards
     env = VecNormalize(
         env,
-        norm_obs=True,      # Normalize observations
-        norm_reward=True,   # Normalize rewards
-        clip_obs=10.,       # Clip observations
-        clip_reward=10.,    # Clip rewards
+        norm_obs=True,
+        norm_reward=True,
+        clip_obs=10.,
+        clip_reward=10.,
     )
     
-    # Create model with custom network architecture
     policy_kwargs = dict(
-        # Following paper's architecture
         net_arch=dict(
-            pi=[64, 64],  # Actor network
-            vf=[64, 64]   # Critic network
+            pi=[64, 64],
+            vf=[64, 64]
         )
     )
     
     model = A2C(
-        "MlpPolicy",
+        "MultiInputPolicy",
         env,
         policy_kwargs=policy_kwargs,
-        learning_rate=1e-4,           # Learning rate from paper
-        n_steps=5,                    # Number of steps between updates
-        gamma=0.99,                   # Discount factor
-        gae_lambda=0.95,              # GAE parameter
-        ent_coef=0.01,                # Entropy coefficient
-        vf_coef=0.5,                  # Value function coefficient
-        max_grad_norm=0.5,            # Max gradient norm
-        use_rms_prop=True,            # Use RMSProp optimizer
-        rms_prop_eps=1e-5,            # RMSProp epsilon
-        verbose=1
+        learning_rate=1e-3,
+        n_steps=5,
+        gamma=0.99,
+        gae_lambda=0.95,
+        ent_coef=0.01,
+        vf_coef=0.5,
+        max_grad_norm=0.5,
+        use_rms_prop=True,
+        rms_prop_eps=1e-5,
+        verbose=1,
+        tensorboard_log="./logs/tensorboard/"
     )
     
-    # Set up callbacks
-    # Save best model based on mean reward
     eval_callback = EvalCallback(
         env,
         best_model_save_path='./logs/best_model',
         log_path='./logs/eval_results',
-        eval_freq=1000,
-        n_eval_episodes=5,
+        eval_freq=100,
+        n_eval_episodes=2,
         deterministic=True,
         render=False
     )
     
-    # Periodically save model during training
     checkpoint_callback = CheckpointCallback(
-        save_freq=10000,
+        save_freq=500,
         save_path='./logs/checkpoints/',
         name_prefix='amr_model'
     )
     
-    # Train model
-    total_timesteps = 200000  # Adjust based on your needs
-    
+    tensorboard_callback = TensorboardCallback()
     model.learn(
         total_timesteps=total_timesteps,
-        callback=[eval_callback, checkpoint_callback]
+        callback=[eval_callback, checkpoint_callback, tensorboard_callback]
     )
     
-    # Save final model
     model.save("amr_a2c_final")
     
     return model, env
 
 def evaluate_model(model, env, n_episodes=10):
-    """Evaluate trained model."""
     rewards = []
     
     for episode in range(n_episodes):
@@ -129,7 +133,6 @@ def evaluate_model(model, env, n_episodes=10):
             obs, reward, done, info = env.step(action)
             episode_reward += reward
             
-            # Track metrics
             print(f"Elements: {info[0]['n_elements']}, Resource usage: {info[0]['resource_usage']:.3f}")
             
         rewards.append(episode_reward)
@@ -139,14 +142,11 @@ def evaluate_model(model, env, n_episodes=10):
     print(f"Std dev of rewards: {np.std(rewards):.3f}")
 
 if __name__ == "__main__":
-    # Create logging directory
-    import os
     os.makedirs('./logs', exist_ok=True)
+    os.makedirs('./logs/tensorboard', exist_ok=True)
     
-    # Train model
     print("Starting training...")
     model, env = train_a2c()
     
-    # Evaluate model
     print("\nEvaluating model...")
     evaluate_model(model, env)

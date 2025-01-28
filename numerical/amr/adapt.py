@@ -190,6 +190,99 @@ def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
     # print(f"\nFinal adapted solution shape: {result.shape}")
     return result
 
+def get_element_neighbors(elem, label_mat, active):
+    """
+    Gets neighboring elements by checking siblings and parent/child relationships.
+    
+    Returns list of neighbor element numbers or None for boundaries.
+    """
+    neighbors = []
+    
+    # Check previous element
+    if elem > 1 and (elem-1) in active:
+        neighbors.append(elem-1)
+        
+    # Check next element  
+    if elem < len(label_mat) and (elem+1) in active:
+        neighbors.append(elem+1)
+        
+    return neighbors
+
+def enforce_2_1_balance(label_mat, info_mat, active, marks):
+    """
+    Enforces 2:1 balance by propagating refinement as needed.
+    
+    Args:
+        label_mat: Element family relationships [elem, parent, child1, child2]
+        info_mat: Element information including level
+        active: Currently active elements 
+        marks: Current refinement marks (-1: coarsen, 0: no change, 1: refine)
+        
+    Returns:
+        Updated marks array ensuring 2:1 balance
+    """
+    from collections import deque
+    
+    # Keep track of cells we've processed
+    processed = set()
+    
+    # Process queue
+    queue = deque()
+    for i, mark in enumerate(marks):
+        if mark == 1:  # Initially add all refinement marks
+            queue.append(i)
+            
+    while queue:
+        idx = queue.popleft()
+        if idx in processed:
+            continue
+            
+        elem = active[idx]
+        elem_level = info_mat[elem-1][2]  # Current element's level
+        
+        # Get neighbors
+        neighbors = get_element_neighbors(elem, label_mat, active)
+        
+        # Check each neighbor
+        for neighbor in neighbors:
+            if neighbor is None:
+                continue
+                
+            neighbor_idx = np.where(active == neighbor)[0][0]
+            neighbor_level = info_mat[neighbor-1][2]
+            
+            # If neighbor would be more than 1 level coarser after refinement
+            if elem_level + 1 - neighbor_level > 1:
+                # Mark neighbor for refinement
+                marks[neighbor_idx] = 1
+                queue.append(neighbor_idx)
+                
+        processed.add(idx)
+        
+    # Now check if any coarsening would violate 2:1 balance
+    for i, mark in enumerate(marks):
+        if mark == -1:
+            elem = active[i]
+            elem_level = info_mat[elem-1][2]
+            
+            neighbors = get_element_neighbors(elem, label_mat, active)
+            
+            for neighbor in neighbors:
+                if neighbor is None:
+                    continue
+                    
+                neighbor_idx = np.where(active == neighbor)[0][0]
+                neighbor_level = info_mat[neighbor-1][2]
+                
+                # If neighbor is too refined relative to coarsened element
+                if neighbor_level - (elem_level - 1) > 1:
+                    marks[i] = 0  # Prevent coarsening
+                    break
+                    
+    return marks
+
+
+
 
 #The following is the same routine with debugging comments
 # def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):

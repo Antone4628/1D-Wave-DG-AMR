@@ -31,7 +31,7 @@ def main():
   
     
     # Create environment
-    env = DGAMREnv(solver=solver, gamma_c=25.0)
+    env = DGAMREnv(solver=solver, element_budget=25, gamma_c=25.0)
     
     print("Checking environment...")
     try:
