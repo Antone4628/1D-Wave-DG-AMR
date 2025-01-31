@@ -5,8 +5,8 @@ from numpy.linalg import norm
 from ..dg.matrices import create_mass_matrix, create_diff_matrix, Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix
 from ..dg.basis import *
 from ..grid.mesh import create_grid_us
-from ..amr.forest import forest, mark
-from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, get_element_neighbors
+from ..amr.forest import forest, mark, get_active_levels, print_active_levels
+from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, print_balance_violations
 from ..amr.projection import*
 from .utils import *
 
@@ -171,7 +171,13 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
         #     # Get refinement marks
             marks = mark(active, label_mat, intma, qp, criterion)
 
-            marks = enforce_2_1_balance(label_mat, info_mat, active, marks)
+            # print(f'pre ratio enforcement marks: {marks}')
+
+            marks = enforce_2_1_balance(label_mat, active, marks)
+
+ 
+
+            # print(f'post ratio enforcement marks: {marks}')
 
             pre_marks = marks
             pre_active = active  
@@ -183,9 +189,21 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
 
 
             # Adapt mesh
+            # print(f'pre-adaptation:')
+            # get_active_levels(active, label_mat)
+            # print_active_levels(active, label_mat)
+
+
             new_grid, new_active, ref_marks, new_nelem, npoin_cg, new_npoin_dg = adapt_mesh(nop, pre_grid, pre_active, label_mat, info_mat, marks)
             new_coord, new_intma, periodicity = create_grid_us(ngl, new_nelem, npoin_cg, new_npoin_dg, xgl, new_grid)
+
+
+            # Print state after enforcement
+            print_balance_violations(new_active, label_mat)
             
+            # print(f'post-adaptation:')
+            # get_active_levels(new_active, label_mat)
+            # print_active_levels(new_active, label_mat)
 
             # Project solution
             q_ad = adapt_sol(qp, pre_coord, marks, pre_active, label_mat, PS1, PS2, PG1, PG2, ngl)

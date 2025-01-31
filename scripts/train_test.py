@@ -62,7 +62,7 @@ callback = DebugCallback()
 
 # Train for just a few episodes
 try:
-    model.learn(total_timesteps=1000, callback=callback)
+    model.learn(total_timesteps=100, callback=callback)
     print("\nTraining completed successfully")
     print(f"Tensorboard logs written to: {log_dir}")
 except Exception as e:

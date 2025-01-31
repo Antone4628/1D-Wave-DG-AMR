@@ -217,11 +217,11 @@ def Matrix_DSS(Me, De, u, intma, periodicity, ngl, nelem, npoin):
     M = np.zeros([npoin,npoin])
     D = np.zeros([npoin,npoin])
     
-    print(f"Matrix_DSS Debug:")
-    print(f"Me shape: {Me.shape}")
-    print(f"Number of elements: {nelem}")
-    print(f"Points per element: {ngl}")
-    print(f"Total points: {npoin}")
+    # print(f"Matrix_DSS Debug:")
+    # print(f"Me shape: {Me.shape}")
+    # print(f"Number of elements: {nelem}")
+    # print(f"Points per element: {ngl}")
+    # print(f"Total points: {npoin}")
 
     for e in range(nelem):
         for i in range(ngl):

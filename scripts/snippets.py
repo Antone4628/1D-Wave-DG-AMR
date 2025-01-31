@@ -106,3 +106,205 @@ def training_step(self, action, observation):
     self.current_element = np.random.randint(0, len(self.solver.active))
     
     return observation, reward, terminated, truncated, info
+
+
+#This code implements the enforce_2_1_balance
+def adapt_mesh(self, criterion=1, marks_override=None):
+    """
+    Unified mesh adaptation routine that handles both refinement and derefinement.
+    Enforces 2:1 balance between element refinement levels.
+    
+    Args:
+        criterion: AMR marking criterion selector
+        marks_override: Optional predefined marks to override automatic marking
+    
+    Returns:
+        tuple: (adapted grid, active cells, new element count, 
+               new CG point count, new DG point count)
+    """
+    ngl = self.nop + 1
+    
+    # Get refinement marks
+    if marks_override is not None:
+        marks = marks_override
+    else:
+        marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
+    
+    # Early exit if no adaptation needed
+    if not np.any(marks):
+        new_nelem = len(self.active)
+        return (self.coord, self.active, marks, new_nelem, 
+                self.nop * new_nelem + 1, ngl * new_nelem)
+    
+    # Enforce 2:1 balance
+    marks = enforce_2_1_balance(self.label_mat, self.active, marks)
+    
+    # Process adaptations one at a time
+    i = 0
+    while i < len(marks):
+        if marks[i] == 0:
+            i += 1
+            continue
+            
+        if marks[i] > 0:
+            # Handle refinement
+            elem = self.active[i]
+            parent_idx = elem - 1
+            c1, c2 = self.label_mat[parent_idx][2:4]
+            c1_r = self.info_mat[c1-1][4]
+            
+            # Update grid
+            self.coord = np.insert(self.coord, i + 1, c1_r)
+            
+            # Update active cells and marks
+            self.active = np.concatenate([
+                self.active[:i],
+                [c1, c2],
+                self.active[i+1:]
+            ])
+            
+            marks = np.concatenate([
+                marks[:i],
+                [0, 0],
+                marks[i+1:]
+            ])
+            
+            # Skip the newly added element
+            i += 2
+            
+        else:  # marks[i] < 0
+            # Handle derefinement
+            elem = self.active[i]
+            parent = self.label_mat[elem-1][1]
+            
+            # Find sibling
+            if self.label_mat[elem-2][1] == parent and i > 0 and marks[i-1] < 0:
+                # Sibling is previous element
+                sib_idx = i - 1
+                min_idx = sib_idx
+            elif i + 1 < len(marks) and self.label_mat[elem][1] == parent and marks[i+1] < 0:
+                # Sibling is next element
+                sib_idx = i + 1
+                min_idx = i
+            else:
+                # No valid sibling found for derefinement
+                i += 1
+                continue
+                
+            # Remove grid point between elements
+            self.coord = np.delete(self.coord, min_idx + 1)
+            
+            # Update active cells and marks
+            self.active = np.concatenate([
+                self.active[:min_idx],
+                [parent],
+                self.active[min_idx+2:]
+            ])
+            
+            marks = np.concatenate([
+                marks[:min_idx],
+                [0],
+                marks[min_idx+2:]
+            ])
+            
+            # Continue checking from the position after the derefined pair
+            i = min_idx + 1
+    
+    # Calculate new dimensions
+    new_nelem = len(self.active)
+    new_npoin_cg = self.nop * new_nelem + 1
+    new_npoin_dg = ngl * new_nelem
+    
+    return self.coord, self.active, marks, new_nelem, new_npoin_cg, new_npoin_dg
+
+def enforce_2_1_balance(label_mat, active, marks):
+    """
+    Enforces 2:1 balance by propagating refinement as needed.
+    Uses level information directly from label_mat[:,4].
+    """
+    from collections import deque
+    
+    # Keep track of cells we've processed
+    processed = set()
+    
+    # Process queue
+    queue = deque()
+    for i, mark in enumerate(marks):
+        if mark == 1:  # Initially add all refinement marks
+            queue.append(i)
+            
+    while queue:
+        idx = queue.popleft()
+        if idx in processed:
+            continue
+            
+        elem = active[idx]
+        elem_level = label_mat[elem-1][4]  # Get level directly from label_mat
+        
+        # Get neighbors
+        neighbors = get_element_neighbors(elem, label_mat, active)
+        
+        # Check each neighbor
+        for neighbor in neighbors:
+            if neighbor is None:
+                continue
+                
+            neighbor_idx = np.where(active == neighbor)[0][0]
+            neighbor_level = label_mat[neighbor-1][4]  # Get level from label_mat
+            
+            # If neighbor would be more than 1 level coarser after refinement
+            if elem_level + 1 - neighbor_level > 1:
+                # Mark neighbor for refinement
+                marks[neighbor_idx] = 1
+                queue.append(neighbor_idx)
+                
+        processed.add(idx)
+        
+    # Now check if any coarsening would violate 2:1 balance
+    for i, mark in enumerate(marks):
+        if mark == -1:
+            elem = active[i]
+            elem_level = label_mat[elem-1][4]
+            
+            # Check if this element can be coarsened
+            parent = label_mat[elem-1][1]
+            if parent == 0:  # Can't coarsen root elements
+                marks[i] = 0
+                continue
+                
+            # Find sibling
+            siblings = []
+            if elem > 1 and label_mat[elem-2][1] == parent:
+                siblings.append(elem-1)
+            if elem < len(label_mat) and label_mat[elem][1] == parent:
+                siblings.append(elem+1)
+            
+            # Both siblings must be marked for coarsening
+            sibling_marked = all(
+                s in active and marks[np.where(active == s)[0][0]] == -1 
+                for s in siblings
+            )
+            if not sibling_marked:
+                marks[i] = 0
+                continue
+                
+            # Check neighbors of both this element and siblings
+            all_neighbors = []
+            all_neighbors.extend(get_element_neighbors(elem, label_mat, active))
+            for sib in siblings:
+                if sib in active:
+                    all_neighbors.extend(get_element_neighbors(sib, label_mat, active))
+            
+            # Remove duplicates and None values
+            all_neighbors = [n for n in set(all_neighbors) if n is not None]
+            
+            # Check if coarsening would violate 2:1 balance with any neighbor
+            for neighbor in all_neighbors:
+                neighbor_level = label_mat[neighbor-1][4]
+                
+                # If neighbor is too refined relative to coarsened element
+                if neighbor_level - (elem_level - 1) > 1:
+                    marks[i] = 0  # Prevent coarsening
+                    break
+                    
+    return marks

@@ -11,7 +11,7 @@ from ..dg.matrices import (create_mass_matrix, create_diff_matrix,
                       Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix)
 from ..grid.mesh import create_grid_us
 from ..amr.forest import forest, mark
-from ..amr.adapt import adapt_mesh, adapt_sol
+from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, check_2_1_balance, print_balance_violations, print_mesh_state
 from ..amr.projection import projections
 from .utils import exact_solution
 
@@ -110,11 +110,99 @@ class DGWaveSolver:
         
         return True
 
+    # def adapt_mesh(self, criterion=1, marks_override=None, element_budget=None):
+    #     """
+    #     Perform mesh adaptation based on solution properties.
+    #     Respects element_budget constraint.
+    #     """
+    #     # Get refinement marks based on solution properties
+    #     marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
+
+    #     # ### ADD enforce_2_1_balance HERE ###
+    #     # marks = enforce_2_1_balance(self.label_mat, self.active, marks)
+
+    #     # Print state after enforcement
+    #     # print_balance_violations(self.active, self.label_mat)
+
+    #     if marks_override is not None:
+    #         for idx, mark_val in marks_override.items():
+    #             # Check budget before refinement
+    #             if mark_val == 1 and element_budget is not None:
+    #                 if len(self.active) >= element_budget:
+    #                     print(f"Budget limit reached ({element_budget} elements). Canceling refinement.")
+    #                     marks[idx] = 0
+    #                     continue
+    #             marks[idx] = mark_val
+    #     # marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
+    
+    #     # if marks_override is not None:
+    #     #     for idx, mark_val in marks_override.items():
+    #     #         if mark_val == 1 and len(self.active) + 1 > self.max_elements:
+    #     #             marks[idx] = 0
+    #     #             continue
+                    
+    #             if not self.check_size_ratios(idx, mark_val):
+    #                 marks[idx] = 0
+    #                 continue
+                    
+    #             marks[idx] = mark_val
+
+
+
+    #     # Enforce 2:1 balance using imported function
+    #     marks = enforce_2_1_balance(self.label_mat, self.active, marks)   
+
+
+    #     pre_grid = self.xelem
+    #     pre_active = self.active
+    #     pre_nelem = self.nelem
+    #     pre_coord = self.coord
+    #     pre_npoin_dg = self.npoin_dg
+
+    #     print("\nBefore adaptation:")
+    #     print_mesh_state(self.active, self.label_mat)
+    #     print_balance_violations(self.active, self.label_mat)
+        
+    #     new_grid, new_active, _, new_nelem, npoin_cg, new_npoin_dg = adapt_mesh(
+    #         self.nop, pre_grid, pre_active, self.label_mat, 
+    #         self.info_mat, marks
+    #     )
+    #     # After adaptation:
+    #     print("\nAfter adaptation:")
+    #     print_mesh_state(self.new_active, self.label_mat)
+    #     print_balance_violations(self.new_active, self.label_mat)
+
+    #     new_coord, new_intma, new_periodicity = create_grid_us(
+    #         self.ngl, new_nelem, npoin_cg, new_npoin_dg, 
+    #         self.xgl, new_grid
+    #     )
+
+    #     q_new = adapt_sol(
+    #         self.q, pre_coord, marks, pre_active, self.label_mat,
+    #         self.PS1, self.PS2, self.PG1, self.PG2, self.ngl
+    #     )
+
+    #     self.q = q_new
+    #     self.active = new_active
+    #     self.nelem = new_nelem
+    #     self.intma = new_intma
+    #     self.coord = new_coord
+    #     self.xelem = new_grid
+    #     self.npoin_dg = new_npoin_dg
+    #     self.periodicity = new_periodicity
+        
+    #     self._update_matrices()
+
+
     def adapt_mesh(self, criterion=1, marks_override=None, element_budget=None):
         """
         Perform mesh adaptation based on solution properties.
         Respects element_budget constraint.
         """
+        # print("\nBefore adaptation:")
+        # print_mesh_state(self.active, self.label_mat)
+        # print_balance_violations(self.active, self.label_mat)
+        
         # Get refinement marks based on solution properties
         marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
 
@@ -126,41 +214,47 @@ class DGWaveSolver:
                         print(f"Budget limit reached ({element_budget} elements). Canceling refinement.")
                         marks[idx] = 0
                         continue
-                marks[idx] = mark_val
-        # marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
-    
-        # if marks_override is not None:
-        #     for idx, mark_val in marks_override.items():
-        #         if mark_val == 1 and len(self.active) + 1 > self.max_elements:
-        #             marks[idx] = 0
-        #             continue
-                    
+                
                 if not self.check_size_ratios(idx, mark_val):
                     marks[idx] = 0
                     continue
                     
                 marks[idx] = mark_val
+
+        # Enforce 2:1 balance
+        marks = enforce_2_1_balance(self.label_mat, self.active, marks)
+        
+        # Store pre-adaptation state
         pre_grid = self.xelem
         pre_active = self.active
         pre_nelem = self.nelem
         pre_coord = self.coord
         pre_npoin_dg = self.npoin_dg
         
+        # Adapt mesh
         new_grid, new_active, _, new_nelem, npoin_cg, new_npoin_dg = adapt_mesh(
             self.nop, pre_grid, pre_active, self.label_mat, 
             self.info_mat, marks
         )
 
+        # After adaptation
+        # print("\nAfter adaptation:")
+        # print_mesh_state(new_active, self.label_mat)
+        print_balance_violations(new_active, self.label_mat)
+
+        # Create new grid
         new_coord, new_intma, new_periodicity = create_grid_us(
             self.ngl, new_nelem, npoin_cg, new_npoin_dg, 
             self.xgl, new_grid
         )
 
+        # Project solution
         q_new = adapt_sol(
             self.q, pre_coord, marks, pre_active, self.label_mat,
             self.PS1, self.PS2, self.PG1, self.PG2, self.ngl
         )
 
+        # Update solver state
         self.q = q_new
         self.active = new_active
         self.nelem = new_nelem
@@ -170,7 +264,9 @@ class DGWaveSolver:
         self.npoin_dg = new_npoin_dg
         self.periodicity = new_periodicity
         
+        # Update matrices
         self._update_matrices()
+
     def step(self, dt=None):
         if dt is None:
             dt = self.dt

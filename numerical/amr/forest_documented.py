@@ -75,18 +75,14 @@ def forest(xelem0, max_level):
     """
     Creates hierarchical mesh structure for AMR operations.
     
-    This function builds the data structures needed to track element refinement:
-    - Label matrix: Stores parent-child relationships
-    - Info matrix: Stores element metadata and coordinates
-    - Active grid: Tracks currently active (leaf) elements
-    
     Args:
         xelem0 (array): Initial grid coordinates
         max_level (int): Maximum allowed refinement level
+        
     Returns:
         tuple: (label_mat, info_mat, active_grid)
-            label_mat: [num_total_elements, 4] array storing:
-                      [element_id, parent_id, child1_id, child2_id]
+            label_mat: [num_total_elements, 5] array storing:
+                      [element_id, parent_id, child1_id, child2_id, level]
             info_mat: [num_total_elements, 5] array storing:
                      [element_id, parent_id, level, left_coord, right_coord]
             active_grid: Array of currently active element IDs
@@ -105,8 +101,8 @@ def forest(xelem0, max_level):
         lmt = rows - a
     
     # Initialize matrices
-    label_mat = np.zeros([rows, 4], dtype=int)  # Element relationships
-    info_mat = np.zeros([rows, 3])  # Element metadata
+    label_mat = np.zeros([rows, 5], dtype=int)  # Added column for level
+    info_mat = np.zeros([rows, 3])  # Keep original 3 columns [elem, parent, level]
     
     # Track elements per level for level calculation
     elems_per_level = [elems0]
@@ -122,10 +118,10 @@ def forest(xelem0, max_level):
         label_mat[j][0] = j + 1
         info_mat[j][0] = j + 1
         
-        if j < div:  # Base level elements
+        if j < div:
             label_mat[j][1] = j//div
             info_mat[j][1] = int(j//div)
-        else:  # Refined elements
+        else:
             label_mat[j][1] = (ctr)//2
             info_mat[j][1] = int(ctr//2)
             ctr += 1
@@ -135,23 +131,105 @@ def forest(xelem0, max_level):
             label_mat[j][2] = div + (2*j+1)  # Left child
             label_mat[j][3] = div + 2*(j+1)  # Right child
         
-        # Calculate element's refinement level
+        # Calculate and store element's refinement level
         cum_sum = 0
         for lvl, num_elems in enumerate(elems_per_level):
             if j < (cum_sum + num_elems):
-                info_mat[j][2] = lvl
+                label_mat[j][4] = lvl  # Store level in label_mat's new column
+                info_mat[j][2] = lvl   # Keep level in info_mat for compatibility
                 break
             cum_sum += num_elems
     
     # Add coordinate information
     levels_arr = level_arrays(xelem0, max_level)
     vstack = vstacker(levels_arr)
-    coord_mat = np.hstack((info_mat, vstack))
+    info_mat = np.hstack((info_mat, vstack))  # Add coordinates to info_mat
     
     # Initialize active grid with base elements
     active_grid = np.arange(1, len(xelem0))
     
-    return label_mat, coord_mat, active_grid
+    return label_mat, info_mat, active_grid
+# def forest(xelem0, max_level):
+#     """
+#     Creates hierarchical mesh structure for AMR operations.
+    
+#     This function builds the data structures needed to track element refinement:
+#     - Label matrix: Stores parent-child relationships
+#     - Info matrix: Stores element metadata and coordinates
+#     - Active grid: Tracks currently active (leaf) elements
+    
+#     Args:
+#         xelem0 (array): Initial grid coordinates
+#         max_level (int): Maximum allowed refinement level
+#     Returns:
+#         tuple: (label_mat, info_mat, active_grid)
+#             label_mat: [num_total_elements, 4] array storing:
+#                       [element_id, parent_id, child1_id, child2_id]
+#             info_mat: [num_total_elements, 5] array storing:
+#                      [element_id, parent_id, level, left_coord, right_coord]
+#             active_grid: Array of currently active element IDs
+#     """
+#     levels = max_level + 1
+#     elems0 = len(xelem0) - 1  # Initial number of elements
+#     rows = elems0  # Start with base elements
+#     lmt = 0  # Last element that can have children
+    
+#     # Calculate total elements across all levels
+#     elems = np.zeros(levels, dtype=int)
+#     elems[0] = elems0
+#     for i in range(levels-1):
+#         a = 2**(i+1) * elems0
+#         rows += a
+#         lmt = rows - a
+    
+#     # Initialize matrices
+#     label_mat = np.zeros([rows, 4], dtype=int)  # Element relationships
+#     info_mat = np.zeros([rows, 3])  # Element metadata
+    
+#     # Track elements per level for level calculation
+#     elems_per_level = [elems0]
+#     for i in range(max_level):
+#         elems_per_level.append(elems_per_level[-1] * 2)
+    
+#     # Fill matrices
+#     ctr = 2
+#     for j in range(rows):
+#         div = elems0
+        
+#         # Set element and parent IDs
+#         label_mat[j][0] = j + 1
+#         info_mat[j][0] = j + 1
+        
+#         if j < div:  # Base level elements
+#             label_mat[j][1] = j//div
+#             info_mat[j][1] = int(j//div)
+#         else:  # Refined elements
+#             label_mat[j][1] = (ctr)//2
+#             info_mat[j][1] = int(ctr//2)
+#             ctr += 1
+            
+#         # Set children IDs for non-leaf elements
+#         if j < lmt:
+#             label_mat[j][2] = div + (2*j+1)  # Left child
+#             label_mat[j][3] = div + 2*(j+1)  # Right child
+        
+#         # Calculate element's refinement level
+#         cum_sum = 0
+#         for lvl, num_elems in enumerate(elems_per_level):
+#             if j < (cum_sum + num_elems):
+#                 info_mat[j][2] = lvl
+#                 break
+#             cum_sum += num_elems
+    
+#     # Add coordinate information
+#     levels_arr = level_arrays(xelem0, max_level)
+#     vstack = vstacker(levels_arr)
+#     coord_mat = np.hstack((info_mat, vstack))
+    
+#     # Initialize active grid with base elements
+#     active_grid = np.arange(1, len(xelem0))
+    
+#     return label_mat, coord_mat, active_grid
 
 def mark(active_grid, label_mat, intma, q, criterion):
     """

@@ -190,96 +190,469 @@ def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
     # print(f"\nFinal adapted solution shape: {result.shape}")
     return result
 
-def get_element_neighbors(elem, label_mat, active):
-    """
-    Gets neighboring elements by checking siblings and parent/child relationships.
+# def get_element_neighbors(elem, label_mat, active):
+#     """
+#     Gets neighboring elements by checking siblings and parent/child relationships.
     
-    Returns list of neighbor element numbers or None for boundaries.
-    """
-    neighbors = []
+#     Returns list of neighbor element numbers or None for boundaries.
+#     """
+#     neighbors = []
     
-    # Check previous element
-    if elem > 1 and (elem-1) in active:
-        neighbors.append(elem-1)
+#     # Get parent
+#     parent = label_mat[elem-1][1]
+    
+#     # Check previous element
+#     if elem > 1 and (elem-1) in active:
+#         prev_parent = label_mat[elem-2][1]
+#         if prev_parent == parent:  # Share same parent (siblings)
+#             neighbors.append(elem-1)
+#         else:
+#             neighbors.append(elem-1)
+            
+#     # Check next element
+#     if elem < len(label_mat) and (elem+1) in active:
+#         next_parent = label_mat[elem][1]
+#         if next_parent == parent:  # Share same parent (siblings)
+#             neighbors.append(elem+1)
+#         else:
+#             neighbors.append(elem+1)
+            
+#     return neighbors
+def find_active_neighbor(elem, direction, label_mat, active):
+        parent = label_mat[elem-1][1]
         
-    # Check next element  
-    if elem < len(label_mat) and (elem+1) in active:
-        neighbors.append(elem+1)
+        if parent == 0:
+            if direction == 'left' and elem > 1:
+                return elem - 1 if (elem - 1) in active else None
+            elif direction == 'right' and elem < len(label_mat):
+                return elem + 1 if (elem + 1) in active else None
+            return None
+            
+        parent_children = label_mat[parent-1][2:4]
+        if parent_children[0] == 0:  # Invalid children
+            return None
+            
+        # Left child case
+        if elem == parent_children[0]:
+            if direction == 'left':
+                parent_neighbor = find_active_neighbor(parent, 'left', label_mat, active)
+                if parent_neighbor is None or parent_neighbor not in active:
+                    return None
+                neighbor_children = label_mat[parent_neighbor-1][2:4]
+                if neighbor_children[0] == 0:
+                    return None
+                if neighbor_children[1] in active:
+                    return neighbor_children[1]
+                if neighbor_children[0] in active:
+                    return neighbor_children[0]
+                return parent_neighbor if parent_neighbor in active else None
+            else:  # right
+                return parent_children[1] if parent_children[1] in active else None
         
-    return neighbors
+        # Right child case
+        else:
+            if direction == 'right':
+                parent_neighbor = find_active_neighbor(parent, 'right',label_mat, active)
+                if parent_neighbor is None or parent_neighbor not in active:
+                    return None
+                neighbor_children = label_mat[parent_neighbor-1][2:4]
+                if neighbor_children[0] == 0:
+                    return None
+                if neighbor_children[0] in active:
+                    return neighbor_children[0]
+                if neighbor_children[1] in active:
+                    return neighbor_children[1]
+                return parent_neighbor if parent_neighbor in active else None
+            else:  # left
+                return parent_children[0] if parent_children[0] in active else None
 
-def enforce_2_1_balance(label_mat, info_mat, active, marks):
+def enforce_2_1_balance(label_mat, active, marks):
     """
-    Enforces 2:1 balance by propagating refinement as needed.
-    
-    Args:
-        label_mat: Element family relationships [elem, parent, child1, child2]
-        info_mat: Element information including level
-        active: Currently active elements 
-        marks: Current refinement marks (-1: coarsen, 0: no change, 1: refine)
-        
-    Returns:
-        Updated marks array ensuring 2:1 balance
+    Two-stage balance enforcement:
+    1. Fix any existing violations
+    2. Prevent new violations from marks
     """
-    from collections import deque
+    def get_element_index(elem, active_array):
+        indices = np.where(active_array == elem)[0]
+        return indices[0] if len(indices) > 0 else None
+        
+    # def find_active_neighbor(elem, direction):
+    #     parent = label_mat[elem-1][1]
+        
+    #     if parent == 0:
+    #         if direction == 'left' and elem > 1:
+    #             return elem - 1 if (elem - 1) in active else None
+    #         elif direction == 'right' and elem < len(label_mat):
+    #             return elem + 1 if (elem + 1) in active else None
+    #         return None
+            
+    #     parent_children = label_mat[parent-1][2:4]
+    #     if parent_children[0] == 0:  # Invalid children
+    #         return None
+            
+    #     # Left child case
+    #     if elem == parent_children[0]:
+    #         if direction == 'left':
+    #             parent_neighbor = find_active_neighbor(parent, 'left')
+    #             if parent_neighbor is None or parent_neighbor not in active:
+    #                 return None
+    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
+    #             if neighbor_children[0] == 0:
+    #                 return None
+    #             if neighbor_children[1] in active:
+    #                 return neighbor_children[1]
+    #             if neighbor_children[0] in active:
+    #                 return neighbor_children[0]
+    #             return parent_neighbor if parent_neighbor in active else None
+    #         else:  # right
+    #             return parent_children[1] if parent_children[1] in active else None
+        
+    #     # Right child case
+    #     else:
+    #         if direction == 'right':
+    #             parent_neighbor = find_active_neighbor(parent, 'right')
+    #             if parent_neighbor is None or parent_neighbor not in active:
+    #                 return None
+    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
+    #             if neighbor_children[0] == 0:
+    #                 return None
+    #             if neighbor_children[0] in active:
+    #                 return neighbor_children[0]
+    #             if neighbor_children[1] in active:
+    #                 return neighbor_children[1]
+    #             return parent_neighbor if parent_neighbor in active else None
+    #         else:  # left
+    #             return parent_children[0] if parent_children[0] in active else None
     
-    # Keep track of cells we've processed
-    processed = set()
+    def get_neighbors(elem):
+        neighbors = []
+        for direction in ['left', 'right']:
+            neighbor = find_active_neighbor(elem, direction, label_mat, active)
+            if neighbor is not None and neighbor in active:
+                neighbors.append(neighbor)
+        return neighbors
     
-    # Process queue
-    queue = deque()
-    for i, mark in enumerate(marks):
-        if mark == 1:  # Initially add all refinement marks
-            queue.append(i)
-            
-    while queue:
-        idx = queue.popleft()
-        if idx in processed:
-            continue
-            
-        elem = active[idx]
-        elem_level = info_mat[elem-1][2]  # Current element's level
+    def fix_existing_violations():
+        """Fix any existing 2:1 violations in the mesh."""
+        fixed_marks = np.zeros(len(marks), dtype=int)
         
-        # Get neighbors
-        neighbors = get_element_neighbors(elem, label_mat, active)
-        
-        # Check each neighbor
-        for neighbor in neighbors:
-            if neighbor is None:
-                continue
-                
-            neighbor_idx = np.where(active == neighbor)[0][0]
-            neighbor_level = info_mat[neighbor-1][2]
-            
-            # If neighbor would be more than 1 level coarser after refinement
-            if elem_level + 1 - neighbor_level > 1:
-                # Mark neighbor for refinement
-                marks[neighbor_idx] = 1
-                queue.append(neighbor_idx)
-                
-        processed.add(idx)
-        
-    # Now check if any coarsening would violate 2:1 balance
-    for i, mark in enumerate(marks):
-        if mark == -1:
-            elem = active[i]
-            elem_level = info_mat[elem-1][2]
-            
-            neighbors = get_element_neighbors(elem, label_mat, active)
+        # Check each active element
+        for i, elem in enumerate(active):
+            elem_level = label_mat[elem-1][4]
+            neighbors = get_neighbors(elem)
             
             for neighbor in neighbors:
-                if neighbor is None:
+                neighbor_idx = get_element_index(neighbor, active)
+                if neighbor_idx is None:
                     continue
                     
-                neighbor_idx = np.where(active == neighbor)[0][0]
-                neighbor_level = info_mat[neighbor-1][2]
+                neighbor_level = label_mat[neighbor-1][4]
+                level_diff = abs(elem_level - neighbor_level)
                 
-                # If neighbor is too refined relative to coarsened element
-                if neighbor_level - (elem_level - 1) > 1:
-                    marks[i] = 0  # Prevent coarsening
-                    break
+                # If violation exists
+                if level_diff > 1:
+                    # Refine the coarser element
+                    if elem_level > neighbor_level:
+                        fixed_marks[neighbor_idx] = 1
+                    else:
+                        fixed_marks[i] = 1
+        
+        return fixed_marks
+    
+    def prevent_new_violations(current_marks):
+        """Ensure no new violations would be created."""
+        modified_marks = current_marks.copy()
+        
+        # First handle refinements
+        for i, mark in enumerate(modified_marks):
+            if mark != 1:
+                continue
+                
+            elem = active[i]
+            elem_level = label_mat[elem-1][4]
+            neighbors = get_neighbors(elem)
+            
+            for neighbor in neighbors:
+                neighbor_idx = get_element_index(neighbor, active)
+                if neighbor_idx is None:
+                    continue
                     
-    return marks
+                neighbor_level = label_mat[neighbor-1][4]
+                
+                # If refining would create violation
+                if (elem_level + 1) - neighbor_level > 1:
+                    # Force neighbor to refine first
+                    modified_marks[neighbor_idx] = 1
+        
+        # Then handle coarsening
+        for i, mark in enumerate(modified_marks):
+            if mark != -1:
+                continue
+                
+            elem = active[i]
+            elem_level = label_mat[elem-1][4]
+            parent = label_mat[elem-1][1]
+            
+            # Can't coarsen root elements
+            if parent == 0:
+                modified_marks[i] = 0
+                continue
+                
+            # Find sibling
+            parent_children = label_mat[parent-1][2:4]
+            sibling = parent_children[1] if elem == parent_children[0] else parent_children[0]
+            sibling_idx = get_element_index(sibling, active)
+            
+            # Both siblings must be marked for coarsening
+            if sibling_idx is None or modified_marks[sibling_idx] != -1:
+                modified_marks[i] = 0
+                continue
+                
+            # Check all neighbors
+            neighbors = set()
+            for e in [elem, sibling]:
+                neighbors.update(get_neighbors(e))
+                
+            # Remove self and sibling
+            neighbors.discard(elem)
+            neighbors.discard(sibling)
+            
+            # Check if coarsening would create violation
+            for neighbor in neighbors:
+                neighbor_level = label_mat[neighbor-1][4]
+                if abs(neighbor_level - (elem_level - 1)) > 1:
+                    modified_marks[i] = 0
+                    modified_marks[sibling_idx] = 0
+                    break
+        
+        return modified_marks
+    
+    # Stage 1: Fix any existing violations
+    fixed_marks = fix_existing_violations()
+    
+    # Stage 2: Add user's marks and prevent new violations
+    final_marks = np.maximum(fixed_marks, marks)  # Combine fix marks with user marks
+    final_marks = prevent_new_violations(final_marks)
+    
+    return final_marks
+
+def check_2_1_balance(active, label_mat):
+    """
+    Checks if any elements violate 2:1 balance constraint,
+    using tree structure to find true neighbors.
+    
+    Args:
+        active (array): Currently active elements
+        label_mat (array): Element family relationships [elem, parent, child1, child2, level]
+        
+    Returns:
+        list: List of tuples (elem1, elem2, level1, level2) for each violation found
+    """
+    violations = []
+    
+    # def find_active_neighbor(elem, direction):
+    #     """
+    #     Find the active neighbor of an element in a given direction.
+    #     direction: 'left' or 'right'
+    #     """
+    #     # Get current element's parent
+    #     parent = label_mat[elem-1][1]
+        
+    #     # If we're at root level, check adjacent root element
+    #     if parent == 0:
+    #         if direction == 'left' and elem > 1:
+    #             return elem - 1 if (elem - 1) in active else None
+    #         elif direction == 'right' and elem < len(label_mat):
+    #             return elem + 1 if (elem + 1) in active else None
+    #         return None
+            
+    #     # Get parent's children
+    #     parent_children = label_mat[parent-1][2:4]
+        
+    #     # If we're the left child
+    #     if elem == parent_children[0]:
+    #         if direction == 'left':
+    #             # Need to find neighbor to the left of parent
+    #             parent_neighbor = find_active_neighbor(parent, 'left')
+    #             if parent_neighbor is None:
+    #                 return None
+    #             # Get rightmost active child of parent's left neighbor
+    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
+    #             if neighbor_children[1] in active:
+    #                 return neighbor_children[1]
+    #             if neighbor_children[0] in active:
+    #                 return neighbor_children[0]
+    #             return parent_neighbor if parent_neighbor in active else None
+    #         else:  # direction == 'right'
+    #             return parent_children[1] if parent_children[1] in active else parent
+                
+    #     # If we're the right child
+    #     else:
+    #         if direction == 'right':
+    #             # Need to find neighbor to the right of parent
+    #             parent_neighbor = find_active_neighbor(parent, 'right')
+    #             if parent_neighbor is None:
+    #                 return None
+    #             # Get leftmost active child of parent's right neighbor
+    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
+    #             if neighbor_children[0] in active:
+    #                 return neighbor_children[0]
+    #             if neighbor_children[1] in active:
+    #                 return neighbor_children[1]
+    #             return parent_neighbor if parent_neighbor in active else None
+    #         else:  # direction == 'left'
+    #             return parent_children[0] if parent_children[0] in active else parent
+    
+    # Check each active element
+    for elem in active:
+        elem_level = label_mat[elem-1][4]
+        
+        # Check both left and right neighbors
+        for direction in ['left', 'right']:
+            neighbor = find_active_neighbor(elem, direction, label_mat, active)
+            if neighbor is not None:
+                neighbor_level = label_mat[neighbor-1][4]
+                level_diff = abs(elem_level - neighbor_level)
+                
+                if level_diff > 1:
+                    violations.append((elem, neighbor, elem_level, neighbor_level))
+    
+    return violations
+
+def print_balance_violations(active, label_mat):
+    """
+    Prints any 2:1 balance violations in a readable format.
+    """
+    violations = check_2_1_balance(active, label_mat)
+    if violations:
+        print("\n2:1 Balance Violations Found:")
+        print("Element  Neighbor  Elem_Level  Neigh_Level")
+        print("-----------------------------------------")
+        for elem, neighbor, level1, level2 in sorted(violations, key=lambda x: x[0]):
+            print(f"{elem:7d}  {neighbor:8d}  {level1:10d}  {level2:11d}")
+    else:
+        print("\nNo 2:1 balance violations found.")
+
+def print_mesh_state(active, label_mat):
+    """
+    Prints current mesh state with levels and neighbors.
+    """
+    print("\nMesh State:")
+    print("Element  Level  Left_Neighbor  Right_Neighbor")
+    print("--------------------------------------------")
+    
+    def find_neighbors(elem, label_mat, active):
+        left = find_active_neighbor(elem, 'left', label_mat, active)
+        right = find_active_neighbor(elem, 'right', label_mat, active)
+        return left, right
+        
+    for elem in sorted(active):
+        level = label_mat[elem-1][4]
+        left, right = find_neighbors(elem, label_mat, active)
+        print(f"{elem:7d}  {level:5d}  {left if left else 'None':13}  {right if right else 'None':13}")
+
+
+
+
+# def enforce_2_1_balance(label_mat, active, marks):
+#     """
+#     Enforces 2:1 balance by propagating refinement as needed.
+#     Uses level information directly from label_mat[:,4].
+    
+#     Args:
+#         label_mat: Element family relationships [elem, parent, child1, child2, level]
+#         active: Currently active elements 
+#         marks: Current refinement marks (-1: coarsen, 0: no change, 1: refine)
+        
+#     Returns:
+#         Updated marks array ensuring 2:1 balance
+#     """
+#     from collections import deque
+    
+#     # Keep track of cells we've processed
+#     processed = set()
+    
+#     # Process queue
+#     queue = deque()
+#     for i, mark in enumerate(marks):
+#         if mark == 1:  # Initially add all refinement marks
+#             queue.append(i)
+            
+#     while queue:
+#         idx = queue.popleft()
+#         if idx in processed:
+#             continue
+            
+#         elem = active[idx]
+#         elem_level = label_mat[elem-1][4]  # Get level directly from label_mat
+        
+#         # Get neighbors
+#         neighbors = get_element_neighbors(elem, label_mat, active)
+        
+#         # Check each neighbor
+#         for neighbor in neighbors:
+#             if neighbor is None:
+#                 continue
+                
+#             neighbor_idx = np.where(active == neighbor)[0][0]
+#             neighbor_level = label_mat[neighbor-1][4]  # Get level from label_mat
+            
+#             # If neighbor would be more than 1 level coarser after refinement
+#             if elem_level + 1 - neighbor_level > 1:
+#                 # Mark neighbor for refinement
+#                 marks[neighbor_idx] = 1
+#                 queue.append(neighbor_idx)
+                
+#         processed.add(idx)
+        
+#     # Now check if any coarsening would violate 2:1 balance
+#     for i, mark in enumerate(marks):
+#         if mark == -1:
+#             elem = active[i]
+#             elem_level = label_mat[elem-1][4]
+            
+#             # Check if this element can be coarsened
+#             parent = label_mat[elem-1][1]
+#             if parent == 0:  # Can't coarsen root elements
+#                 marks[i] = 0
+#                 continue
+                
+#             # Find sibling
+#             siblings = []
+#             if elem > 1 and label_mat[elem-2][1] == parent:
+#                 siblings.append(elem-1)
+#             if elem < len(label_mat) and label_mat[elem][1] == parent:
+#                 siblings.append(elem+1)
+            
+#             # Both siblings must be marked for coarsening
+#             sibling_marked = all(
+#                 s in active and marks[np.where(active == s)[0][0]] == -1 
+#                 for s in siblings
+#             )
+#             if not sibling_marked:
+#                 marks[i] = 0
+#                 continue
+                
+#             # Check neighbors of both this element and siblings
+#             all_neighbors = []
+#             all_neighbors.extend(get_element_neighbors(elem, label_mat, active))
+#             for sib in siblings:
+#                 if sib in active:
+#                     all_neighbors.extend(get_element_neighbors(sib, label_mat, active))
+            
+#             # Remove duplicates and None values
+#             all_neighbors = [n for n in set(all_neighbors) if n is not None]
+            
+#             # Check if coarsening would violate 2:1 balance with any neighbor
+#             for neighbor in all_neighbors:
+#                 neighbor_level = label_mat[neighbor-1][4]
+                
+#                 # If neighbor is too refined relative to coarsened element
+#                 if neighbor_level - (elem_level - 1) > 1:
+#                     marks[i] = 0  # Prevent coarsening
+#                     break
+                    
+#     return marks
 
 
 

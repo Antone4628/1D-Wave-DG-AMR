@@ -8,7 +8,7 @@ Uses the DGWaveSolver class for the core numerical solution.
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
-from numerical.solvers.dg_wave_solver_documented import DGWaveSolver
+from numerical.solvers.dg_wave_solver import DGWaveSolver
 # from numerical.solvers.dg_wave_solver import DGWaveSolver
 
 # Define initial mesh
@@ -24,7 +24,7 @@ print(f'Smallest initial element has dx: {np.min(differences)}')
 max_level = 4         # Max level of refinement
 nop = 4              # Polynomial order
 courant_max = 0.1    # CFL number
-time_final = 0.2     # Final time
+time_final = 0.2    # Final time
 icase = 1            # Test case number (1: Gaussian)
 
 # Calculate smallest possible element size after refinement
@@ -90,7 +90,7 @@ anim = FuncAnimation(
 )
 
 # Save animation
-gif_title = '1D_Wave_AMR_refdef_GIF.gif'
+gif_title = 'Solver_Class_1D_Wave_AMR_refdef_GIF.gif'
 anim.save(gif_title, writer="pillow", fps=50)
 
 plt.show()

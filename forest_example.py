@@ -7,7 +7,7 @@ import matplotlib.patches as mpatches
 from numerical.dg.basis import lgl_gen, Lagrange_basis
 from numerical.dg.matrices import create_mass_matrix
 from numerical.grid.mesh import create_grid_us
-from numerical.amr.forest import *
+from numerical.amr.forest_documented import *
 
 xelem=np.array([-1, -0.4 ,0 ,0.4 ,1])
 
