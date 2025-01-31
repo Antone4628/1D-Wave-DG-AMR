@@ -218,7 +218,9 @@ def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
 #             neighbors.append(elem+1)
             
 #     return neighbors
-def find_active_neighbor(elem, direction, label_mat, active):
+def find_active_neighbor(elem, direction, label_mat, active, debug = False):
+        if debug:
+            print(f"\nFinding {direction} neighbor for element {elem}")
         parent = label_mat[elem-1][1]
         
         if parent == 0:
@@ -272,6 +274,8 @@ def enforce_2_1_balance(label_mat, active, marks):
     1. Fix any existing violations
     2. Prevent new violations from marks
     """
+
+    
     def get_element_index(elem, active_array):
         indices = np.where(active_array == elem)[0]
         return indices[0] if len(indices) > 0 else None
@@ -436,7 +440,7 @@ def enforce_2_1_balance(label_mat, active, marks):
     
     return final_marks
 
-def check_2_1_balance(active, label_mat):
+def check_2_1_balance(active, label_mat, debug = False):
     """
     Checks if any elements violate 2:1 balance constraint,
     using tree structure to find true neighbors.
@@ -448,6 +452,10 @@ def check_2_1_balance(active, label_mat):
     Returns:
         list: List of tuples (elem1, elem2, level1, level2) for each violation found
     """
+    if debug:
+        print("\nDebug check_2_1_balance:")
+        print("Active elements:", active)
+
     violations = []
     
     # def find_active_neighbor(elem, direction):
@@ -523,7 +531,7 @@ def print_balance_violations(active, label_mat):
     """
     Prints any 2:1 balance violations in a readable format.
     """
-    violations = check_2_1_balance(active, label_mat)
+    violations = check_2_1_balance(active, label_mat, debug=True)
     if violations:
         print("\n2:1 Balance Violations Found:")
         print("Element  Neighbor  Elem_Level  Neigh_Level")

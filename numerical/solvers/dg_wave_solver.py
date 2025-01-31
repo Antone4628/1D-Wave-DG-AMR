@@ -270,6 +270,14 @@ class DGWaveSolver:
     def step(self, dt=None):
         if dt is None:
             dt = self.dt
+        
+            # Check balance before step
+        violations = check_2_1_balance(self.active, self.label_mat)
+        if violations:
+            print(f"\nBalance violations found BEFORE time step at t={self.time}:")
+            for elem, neighbor, level1, level2 in violations:
+                print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+            print_mesh_state(self.active, self.label_mat)
             
         RKA = np.array([0,
                        -567301805773.0/1357537059087,
@@ -298,6 +306,14 @@ class DGWaveSolver:
                 
         self.q = qp
         self.time += dt
+
+            # Check balance after step
+        violations = check_2_1_balance(self.active, self.label_mat)
+        if violations:
+            print(f"\nBalance violations found AFTER time step at t={self.time}:")
+            for elem, neighbor, level1, level2 in violations:
+                print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+            print_mesh_state(self.active, self.label_mat)
         
     def solve(self, time_final):
         times = [self.time]
@@ -305,10 +321,31 @@ class DGWaveSolver:
         grids = [self.xelem.copy()]
         coords = [self.coord.copy()]
         
+        step_count = 0
         while self.time < time_final:
             dt = min(self.dt, time_final - self.time)
             
+            print(f"\nTimestep {step_count}, Time: {self.time:.3f}")
+        
+            # Check balance before adaptation
+            violations = check_2_1_balance(self.active, self.label_mat, debug=True)
+            if violations:
+                print("Pre-adaptation violations found:")
+                for elem, neighbor, level1, level2 in violations:
+                    print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+
             self.adapt_mesh()
+
+                    # Check balance after adaptation
+            violations = check_2_1_balance(self.active, self.label_mat, debug=True)
+            if violations:
+                print("Post-adaptation violations found:")
+                for elem, neighbor, level1, level2 in violations:
+                    print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+                
+                # Print detailed mesh state when violation found
+                print("\nDetailed mesh state at violation:")
+                print_mesh_state(self.active, self.label_mat)
             
             self.step(dt)
             
@@ -316,6 +353,7 @@ class DGWaveSolver:
             solutions.append(self.q.copy())
             grids.append(self.xelem.copy())
             coords.append(self.coord.copy())
+            step_count += 1
             
         return times, solutions, grids, coords
 
