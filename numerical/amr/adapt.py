@@ -268,65 +268,17 @@ def find_active_neighbor(elem, direction, label_mat, active, debug = False):
             else:  # left
                 return parent_children[0] if parent_children[0] in active else None
 
+
 def enforce_2_1_balance(label_mat, active, marks):
     """
-    Two-stage balance enforcement:
+    Three-stage balance enforcement:
     1. Fix any existing violations
-    2. Prevent new violations from marks
+    2. Iteratively propagate refinement marks until no new violations would be created
+    3. Prevent invalid coarsening
     """
-
-    
     def get_element_index(elem, active_array):
         indices = np.where(active_array == elem)[0]
         return indices[0] if len(indices) > 0 else None
-        
-    # def find_active_neighbor(elem, direction):
-    #     parent = label_mat[elem-1][1]
-        
-    #     if parent == 0:
-    #         if direction == 'left' and elem > 1:
-    #             return elem - 1 if (elem - 1) in active else None
-    #         elif direction == 'right' and elem < len(label_mat):
-    #             return elem + 1 if (elem + 1) in active else None
-    #         return None
-            
-    #     parent_children = label_mat[parent-1][2:4]
-    #     if parent_children[0] == 0:  # Invalid children
-    #         return None
-            
-    #     # Left child case
-    #     if elem == parent_children[0]:
-    #         if direction == 'left':
-    #             parent_neighbor = find_active_neighbor(parent, 'left')
-    #             if parent_neighbor is None or parent_neighbor not in active:
-    #                 return None
-    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
-    #             if neighbor_children[0] == 0:
-    #                 return None
-    #             if neighbor_children[1] in active:
-    #                 return neighbor_children[1]
-    #             if neighbor_children[0] in active:
-    #                 return neighbor_children[0]
-    #             return parent_neighbor if parent_neighbor in active else None
-    #         else:  # right
-    #             return parent_children[1] if parent_children[1] in active else None
-        
-    #     # Right child case
-    #     else:
-    #         if direction == 'right':
-    #             parent_neighbor = find_active_neighbor(parent, 'right')
-    #             if parent_neighbor is None or parent_neighbor not in active:
-    #                 return None
-    #             neighbor_children = label_mat[parent_neighbor-1][2:4]
-    #             if neighbor_children[0] == 0:
-    #                 return None
-    #             if neighbor_children[0] in active:
-    #                 return neighbor_children[0]
-    #             if neighbor_children[1] in active:
-    #                 return neighbor_children[1]
-    #             return parent_neighbor if parent_neighbor in active else None
-    #         else:  # left
-    #             return parent_children[0] if parent_children[0] in active else None
     
     def get_neighbors(elem):
         neighbors = []
@@ -340,7 +292,6 @@ def enforce_2_1_balance(label_mat, active, marks):
         """Fix any existing 2:1 violations in the mesh."""
         fixed_marks = np.zeros(len(marks), dtype=int)
         
-        # Check each active element
         for i, elem in enumerate(active):
             elem_level = label_mat[elem-1][4]
             neighbors = get_neighbors(elem)
@@ -353,9 +304,7 @@ def enforce_2_1_balance(label_mat, active, marks):
                 neighbor_level = label_mat[neighbor-1][4]
                 level_diff = abs(elem_level - neighbor_level)
                 
-                # If violation exists
                 if level_diff > 1:
-                    # Refine the coarser element
                     if elem_level > neighbor_level:
                         fixed_marks[neighbor_idx] = 1
                     else:
@@ -363,32 +312,50 @@ def enforce_2_1_balance(label_mat, active, marks):
         
         return fixed_marks
     
-    def prevent_new_violations(current_marks):
-        """Ensure no new violations would be created."""
+    def propagate_refinement(current_marks):
+        """Iteratively propagate refinement until no new violations would be created."""
         modified_marks = current_marks.copy()
+        needs_iteration = True
+        max_iterations = 100  # Safety limit
+        iteration = 0
         
-        # First handle refinements
-        for i, mark in enumerate(modified_marks):
-            if mark != 1:
-                continue
-                
-            elem = active[i]
-            elem_level = label_mat[elem-1][4]
-            neighbors = get_neighbors(elem)
+        while needs_iteration and iteration < max_iterations:
+            needs_iteration = False
+            iteration += 1
             
-            for neighbor in neighbors:
-                neighbor_idx = get_element_index(neighbor, active)
-                if neighbor_idx is None:
+            # Check each element marked for refinement
+            for i, mark in enumerate(modified_marks):
+                if mark != 1:
                     continue
                     
-                neighbor_level = label_mat[neighbor-1][4]
+                elem = active[i]
+                elem_level = label_mat[elem-1][4]
+                neighbors = get_neighbors(elem)
                 
-                # If refining would create violation
-                if (elem_level + 1) - neighbor_level > 1:
-                    # Force neighbor to refine first
-                    modified_marks[neighbor_idx] = 1
+                # Check if refining this element would create violations
+                for neighbor in neighbors:
+                    neighbor_idx = get_element_index(neighbor, active)
+                    if neighbor_idx is None:
+                        continue
+                        
+                    neighbor_level = label_mat[neighbor-1][4]
+                    
+                    # If refining would create violation
+                    if (elem_level + 1) - neighbor_level > 1:
+                        # Mark neighbor for refinement if not already marked
+                        if modified_marks[neighbor_idx] != 1:
+                            modified_marks[neighbor_idx] = 1
+                            needs_iteration = True  # Need another iteration to check new marks
         
-        # Then handle coarsening
+        if iteration == max_iterations:
+            print("Warning: Maximum refinement propagation iterations reached")
+            
+        return modified_marks
+    
+    def prevent_coarsening(current_marks):
+        """Prevent any coarsening that would create violations."""
+        modified_marks = current_marks.copy()
+        
         for i, mark in enumerate(modified_marks):
             if mark != -1:
                 continue
@@ -416,8 +383,7 @@ def enforce_2_1_balance(label_mat, active, marks):
             neighbors = set()
             for e in [elem, sibling]:
                 neighbors.update(get_neighbors(e))
-                
-            # Remove self and sibling
+            
             neighbors.discard(elem)
             neighbors.discard(sibling)
             
@@ -431,14 +397,141 @@ def enforce_2_1_balance(label_mat, active, marks):
         
         return modified_marks
     
-    # Stage 1: Fix any existing violations
+    # Stage 1: Fix existing violations
     fixed_marks = fix_existing_violations()
     
-    # Stage 2: Add user's marks and prevent new violations
-    final_marks = np.maximum(fixed_marks, marks)  # Combine fix marks with user marks
-    final_marks = prevent_new_violations(final_marks)
+    # Stage 2: Propagate refinement until stable
+    propagated_marks = propagate_refinement(np.maximum(fixed_marks, marks))
+    
+    # Stage 3: Prevent invalid coarsening
+    final_marks = prevent_coarsening(propagated_marks)
     
     return final_marks
+
+# def enforce_2_1_balance(label_mat, active, marks):
+#     """
+#     Two-stage balance enforcement:
+#     1. Fix any existing violations
+#     2. Prevent new violations from marks
+#     """
+
+    
+#     def get_element_index(elem, active_array):
+#         indices = np.where(active_array == elem)[0]
+#         return indices[0] if len(indices) > 0 else None
+
+    
+#     def get_neighbors(elem):
+#         neighbors = []
+#         for direction in ['left', 'right']:
+#             neighbor = find_active_neighbor(elem, direction, label_mat, active)
+#             if neighbor is not None and neighbor in active:
+#                 neighbors.append(neighbor)
+#         return neighbors
+    
+#     def fix_existing_violations():
+#         """Fix any existing 2:1 violations in the mesh."""
+#         fixed_marks = np.zeros(len(marks), dtype=int)
+        
+#         # Check each active element
+#         for i, elem in enumerate(active):
+#             elem_level = label_mat[elem-1][4]
+#             neighbors = get_neighbors(elem)
+            
+#             for neighbor in neighbors:
+#                 neighbor_idx = get_element_index(neighbor, active)
+#                 if neighbor_idx is None:
+#                     continue
+                    
+#                 neighbor_level = label_mat[neighbor-1][4]
+#                 level_diff = abs(elem_level - neighbor_level)
+                
+#                 # If violation exists
+#                 if level_diff > 1:
+#                     # Refine the coarser element
+#                     if elem_level > neighbor_level:
+#                         fixed_marks[neighbor_idx] = 1
+#                     else:
+#                         fixed_marks[i] = 1
+        
+#         return fixed_marks
+    
+#     def prevent_new_violations(current_marks):
+#         """Ensure no new violations would be created."""
+#         modified_marks = current_marks.copy()
+        
+#         # First handle refinements
+#         for i, mark in enumerate(modified_marks):
+#             if mark != 1:
+#                 continue
+                
+#             elem = active[i]
+#             elem_level = label_mat[elem-1][4]
+#             neighbors = get_neighbors(elem)
+            
+#             for neighbor in neighbors:
+#                 neighbor_idx = get_element_index(neighbor, active)
+#                 if neighbor_idx is None:
+#                     continue
+                    
+#                 neighbor_level = label_mat[neighbor-1][4]
+                
+#                 # If refining would create violation
+#                 if (elem_level + 1) - neighbor_level > 1:
+#                     # Force neighbor to refine first
+#                     modified_marks[neighbor_idx] = 1
+        
+#         # Then handle coarsening
+#         for i, mark in enumerate(modified_marks):
+#             if mark != -1:
+#                 continue
+                
+#             elem = active[i]
+#             elem_level = label_mat[elem-1][4]
+#             parent = label_mat[elem-1][1]
+            
+#             # Can't coarsen root elements
+#             if parent == 0:
+#                 modified_marks[i] = 0
+#                 continue
+                
+#             # Find sibling
+#             parent_children = label_mat[parent-1][2:4]
+#             sibling = parent_children[1] if elem == parent_children[0] else parent_children[0]
+#             sibling_idx = get_element_index(sibling, active)
+            
+#             # Both siblings must be marked for coarsening
+#             if sibling_idx is None or modified_marks[sibling_idx] != -1:
+#                 modified_marks[i] = 0
+#                 continue
+                
+#             # Check all neighbors
+#             neighbors = set()
+#             for e in [elem, sibling]:
+#                 neighbors.update(get_neighbors(e))
+                
+#             # Remove self and sibling
+#             neighbors.discard(elem)
+#             neighbors.discard(sibling)
+            
+#             # Check if coarsening would create violation
+#             for neighbor in neighbors:
+#                 neighbor_level = label_mat[neighbor-1][4]
+#                 if abs(neighbor_level - (elem_level - 1)) > 1:
+#                     modified_marks[i] = 0
+#                     modified_marks[sibling_idx] = 0
+#                     break
+        
+#         return modified_marks
+    
+#     # Stage 1: Fix any existing violations
+#     fixed_marks = fix_existing_violations()
+    
+#     # Stage 2: Add user's marks and prevent new violations
+#     final_marks = np.maximum(fixed_marks, marks)  # Combine fix marks with user marks
+#     final_marks = prevent_new_violations(final_marks)
+    
+#     return final_marks
 
 def check_2_1_balance(active, label_mat, debug = False):
     """
