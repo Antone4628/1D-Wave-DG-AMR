@@ -2,7 +2,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy.linalg import norm
 from matplotlib.animation import FuncAnimation
-import matplotlib.patches as mpatches
+import os
+import sys
+import traceback
+
+PROJECT_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), 
+    # '..',
+    '..'
+))
+sys.path.append(PROJECT_ROOT)
 
 from numerical.dg.basis import lgl_gen, Lagrange_basis
 from numerical.dg.matrices import *
@@ -64,7 +73,11 @@ space_method_type = 'dg'    #CG or DG
 flux_type = 2               #1=centered flux and 2=upwind
 
 Courant_max = 0.1           #dt controlled by courant_max
+<<<<<<< HEAD:1D_wave_amr.py
 time_final = .25        #final time in revolutions
+=======
+time_final = .2        #final time in revolutions
+>>>>>>> clean:scripts/1D_wave_amr.py
 iplot_solution = 1          #Switch to Plor of Not
 iplot_matrices = 0          #??????
 

@@ -3,6 +3,80 @@ import numpy as np
 
 #~~~~~~~~~~~~~~~~~~~ single refine/coarsen routine ~~~~~~~~~~~~~~~~~~~~~~~~
 
+def mark(active_grid, label_mat, intma, q, criterion):
+    """
+    Mark elements for refinement/coarsening based on solution criteria.
+    
+    Args:
+        active_grid (array): Currently active element indices
+        label_mat (array): Element family relationships [rows, 4]
+        intma (array): Element-node connectivity
+        q (array): Solution values
+        criterion (int): Determines which marking criterion to use
+            - criterion = 1: refine when solution > 0.5. Used for building out AMR
+            - criterion = 2: Brennan's Criterion
+        
+    Returns:
+        marks (array): Element markers (-1:derefine, 0:no change, 1:refine)
+            
+    Notes:
+        - Elements with solution values >= 0.5 are marked for refinement
+        - Elements with solution values < 0.5 are marked for derefinement
+        - Derefinement only occurs if both siblings meet criteria
+    """
+    n_active = len(active_grid)
+    marks = np.zeros(n_active, dtype=int)
+    refs = []
+    defs = []
+    
+    # Pre-compute label matrix lookups
+    parents = label_mat[active_grid - 1, 1]
+    children = label_mat[active_grid - 1, 2:4]
+    
+    # Process each active element
+    for idx, (elem, parent) in enumerate(zip(active_grid, parents)):
+        # Get element solution values
+        elem_nodes = intma[:, idx]
+        elem_sols = q[elem_nodes]
+        max_sol = np.max(elem_sols)
+        
+        # Check refinement criteria
+        if (criterion == 1):
+            if max_sol >= 0.5 and children[idx, 0] != 0:
+            # if max_sol >= - 0.5 and children[idx, 0] != 0:
+                refs.append(elem)
+                marks[idx] = 1
+                continue
+                
+            # Check coarsening criteria
+            if max_sol < 0.5 and parent != 0:
+                # Find sibling
+                sibling = None
+                if elem > 1 and label_mat[elem-2, 1] == parent:
+                    sibling = elem - 1
+                    sib_idx = idx - 1
+                elif elem < len(label_mat) and label_mat[elem, 1] == parent:
+                    sibling = elem + 1
+                    sib_idx = idx + 1
+                    
+                # Verify sibling status
+                if sibling in active_grid:
+                    sib_nodes = intma[:, sib_idx]
+                    sib_sols = q[sib_nodes]
+                    
+                    # Mark for coarsening if sibling also qualifies
+                    if np.max(sib_sols) < 0.5 and sibling not in defs:
+                        marks[idx] = marks[sib_idx] = -1
+                        defs.extend([elem, sibling])
+        
+        if (criterion == 2):
+            #Brennan will create criterion here
+            pass
+
+    
+    return  marks
+
+
 def adapt_mesh(nop, cur_grid, active, label_mat, info_mat, marks):
     """
     Unified mesh adaptation routine that handles both refinement and derefinement.
@@ -657,412 +731,3 @@ def print_mesh_state(active, label_mat):
 
 
 
-#The following is the same routine with debugging comments
-# def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
-#     """
-#     Adapts solution values during mesh adaptation using scatter/gather operations.
-    
-#     Args:
-#         q (array): Current solution values
-#         marks (array): Original refinement markers (-1: coarsen, 0: no change, 1: refine)
-#         active (array): Original (pre-refinement) active element indices. Must correspond 
-#                        to the original mesh that marks refers to, not the adapted mesh.
-#         label_mat (array): Element family relationships [elem, parent, child1, child2]
-#         PS1, PS2 (array): Scatter matrices for child 1 and 2 [ngl, ngl]
-#         PG1, PG2 (array): Gather matrices for child 1 and 2 [ngl, ngl]
-#         ngl (int): Number of LGL points per element
-        
-#     Returns:
-#         array: Adapted solution values
-#     """
-#     # print("\nStarting solution adaptation:")
-#     # print(f"Initial q shape: {q.shape}")
-#     # print(f"Original (pre-refinement) active elements: {active}")
-#     # print(f"Original marks: {marks}")
-    
-#     new_q = []
-    
-#     i = 0
-#     while i < len(marks):
-#         # print(f"\nProcessing mark {i} for original active element {active[i]}:")
-#         # print(f"Mark value: {marks[i]}")
-        
-#         if marks[i] == 0:
-#             # No adaptation - copy solution values
-#             elem_vals = q[i*ngl:(i+1)*ngl]
-#             # print(f"No adaptation - copying values for element {active[i]}")
-#             new_q.extend(elem_vals)
-#             i += 1
-            
-#         elif marks[i] == 1:
-#             # Refinement - scatter parent solution to children
-#             parent_elem = active[i]
-#             parent_vals = q[i*ngl:(i+1)*ngl]
-
-#             # print(f"\nRefinement Debug for position {i}:")
-#             # print(f"Parent element number in tree: {parent_elem}")
-#             # print(f"Current active elements: {active}")
-
-#             # print(f"\nProjection Debug for element {parent_elem}:")
-#             # print(f"Element coordinates: {coord[i*ngl:(i+1)*ngl]}")
-#             # print(f"Parent values: {parent_vals}")
-#             # print(f"Using PS1:\n{PS1}")
-#             # print(f"Using PS2:\n{PS2}")
-            
-#             # Get children from label_mat using original element number
-#             child1, child2 = label_mat[parent_elem-1][2:4]
-            
-#             # print(f"Refining original element {parent_elem} into children {child1}, {child2}")
-#             # print(f"Parent values: {parent_vals}")
-            
-#             # Scatter to get child solutions using mesh-independent matrices
-#             child1_vals = PS1 @ parent_vals
-#             child2_vals = PS2 @ parent_vals
-            
-#             # print(f"Child 1 values: {child1_vals}")
-#             # print(f"Child 2 values: {child2_vals}")
-            
-#             # Add both children's solutions
-#             new_q.extend(child1_vals)
-#             new_q.extend(child2_vals)
-#             i += 1
-            
-#         else:  # marks[i] == -1
-#             # Handle coarsening
-#             if i + 1 < len(marks) and marks[i+1] == -1:
-#                 # Get the original elements we're coarsening
-#                 child1_elem = active[i]
-#                 child2_elem = active[i+1]
-                
-#                 # Get parent from label_mat using original element number
-#                 parent = label_mat[child1_elem-1][1]  # Both children have same parent
-
-#                 # print(f"\nCoarsening Debug for position {i}:")
-#                 # print(f"Child elements being coarsened: {child1_elem}, {child2_elem}")
-#                 # print(f"Current active elements: {active}")
-                
-#                 # print(f"Coarsening original children {child1_elem}, {child2_elem} back to parent {parent}")
-                
-#                 # Get values for both children
-#                 child1_vals = q[i*ngl:(i+1)*ngl]
-#                 child2_vals = q[(i+1)*ngl:(i+2)*ngl]
-                
-#                 # Gather children solutions to parent using mesh-independent matrices
-#                 parent_vals = PG1 @ child1_vals + PG2 @ child2_vals
-                
-#                 # print(f"Gathered parent values: {parent_vals}")
-                
-#                 # Add parent solution
-#                 new_q.extend(parent_vals)
-                
-#                 # Skip both coarsening marks
-#                 i += 2
-#             else:
-#                 # print(f"Warning: Unpaired coarsening mark at original element {active[i]}")
-#                 elem_vals = q[i*ngl:(i+1)*ngl]
-#                 new_q.extend(elem_vals)
-#                 i += 1
-    
-#     result = np.array(new_q)
-#     # print(f"\nFinal adapted solution shape: {result.shape}")
-#     return result
-
-
-
-# def adapt_sol(q, coord, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
-#     """
-#     Adapts solution values during mesh adaptation using scatter/gather operations.
-    
-#     Args:
-#         q (array): Current solution values
-#         marks (array): Original refinement markers (-1: coarsen, 0: no change, 1: refine)
-#         active (array): Original (pre-refinement) active element indices. Must correspond 
-#                        to the original mesh that marks refers to, not the adapted mesh.
-#         label_mat (array): Element family relationships [elem, parent, child1, child2]
-#         PS1, PS2 (array): Scatter matrices for child 1 and 2 [nelem, ngl, ngl]
-#         PG1, PG2 (array): Gather matrices for child 1 and 2 [nelem, ngl, ngl]
-#         ngl (int): Number of LGL points per element
-        
-#     Returns:
-#         array: Adapted solution values
-        
-#     Notes:
-#         - The active array must be the original active array before any refinement/coarsening,
-#           matching the structure that the marks array refers to.
-#         - For refinement (marks[i]=1), element active[i] will be split into its children
-#           from label_mat
-#         - For coarsening (marks[i]=marks[i+1]=-1), elements active[i] and active[i+1]
-#           will be combined into their parent from label_mat
-#     """
-#     print("\nStarting solution adaptation:")
-#     print(f"Initial q shape: {q.shape}")
-#     print(f"Original (pre-refinement) active elements: {active}")
-#     print(f"Original marks: {marks}")
-    
-#     new_q = []
-#     nelem = PS1.shape[0]
-    
-#     i = 0
-#     while i < len(marks):
-#         print(f"\nProcessing mark {i} for original active element {active[i]}:")
-#         print(f"Mark value: {marks[i]}")
-        
-#         if marks[i] == 0:
-#             # No adaptation - copy solution values
-#             elem_vals = q[i*ngl:(i+1)*ngl]
-#             print(f"No adaptation - copying values for element {active[i]}")
-#             new_q.extend(elem_vals)
-#             i += 1
-            
-#         elif marks[i] == 1:
-#             # Refinement - scatter parent solution to children
-#             # parent_elem = active[i]
-#             # matrix_idx = (parent_elem - 1) % nelem
-
-#             # For refinement:
-#             parent_elem = active[i]
-#             matrix_idx = i  # Use position in pre-refined mesh
-#             parent_vals = q[i*ngl:(i+1)*ngl]
-
-            
-
-#             print(f"\nRefinement Debug for position {i}:")
-#             print(f"Parent element number in tree: {parent_elem}")
-#             print(f"Using projection matrix {i}")
-#             print(f"Current active elements: {active}")
-
-#             print(f"\nProjection Debug for element {parent_elem}:")
-#             print(f"Element coordinates: {coord[i*ngl:(i+1)*ngl]}")
-#             print(f"Parent values: {parent_vals}")
-#             print(f"Using PS1[{matrix_idx}]:\n{PS1[matrix_idx]}")
-#             print(f"Using PS2[{matrix_idx}]:\n{PS2[matrix_idx]}")
-
-
-
-
-
-
-
-
-
-            
-#             # Get children from label_mat using original element number
-#             child1, child2 = label_mat[parent_elem-1][2:4]
-#             parent_vals = q[i*ngl:(i+1)*ngl]
-            
-#             print(f"Refining original element {parent_elem} into children {child1}, {child2}")
-#             print(f"Using matrix index: {matrix_idx}")
-#             print(f"Parent values: {parent_vals}")
-            
-#             # Scatter to get child solutions
-#             child1_vals = PS1[matrix_idx] @ parent_vals
-#             child2_vals = PS2[matrix_idx] @ parent_vals
-            
-#             print(f"Child 1 values: {child1_vals}")
-#             print(f"Child 2 values: {child2_vals}")
-            
-#             # Add both children's solutions
-#             new_q.extend(child1_vals)
-#             new_q.extend(child2_vals)
-#             i += 1
-            
-#         else:  # marks[i] == -1
-#             # Handle coarsening
-#             if i + 1 < len(marks) and marks[i+1] == -1:
-#                 # Get the original elements we're coarsening
-#                 child1_elem = active[i]
-#                 child2_elem = active[i+1]
-                
-#                 # Get parent from label_mat using original element number
-#                 parent = label_mat[child1_elem-1][1]  # Both children have same parent
-#                 # matrix_idx = (parent - 1) % nelem
-
-#                 # For coarsening:
-#                 matrix_idx = i  # Use position of first child in pre-refined mesh
-
-#                 print(f"\nCoarsening Debug for position {i}:")
-#                 print(f"Child elements being coarsened: {child1_elem}, {child2_elem}")
-#                 print(f"Using projection matrices at position {i}")
-#                 print(f"Current active elements: {active}")
-
-                
-                
-#                 print(f"Coarsening original children {child1_elem}, {child2_elem} back to parent {parent}")
-#                 print(f"Using matrix index: {matrix_idx}")
-                
-#                 # Get values for both children
-#                 child1_vals = q[i*ngl:(i+1)*ngl]
-#                 child2_vals = q[(i+1)*ngl:(i+2)*ngl]
-                
-#                 # print(f"Child 1 values: {child1_vals}")
-#                 # print(f"Child 2 values: {child2_vals}")
-                
-#                 # # Gather children solutions to parent
-#                 # parent_vals = PG1[matrix_idx] @ child1_vals + PG2[matrix_idx] @ child2_vals
-
-#                 # Gather children solutions to parent using position i
-#                 parent_vals = PG1[i] @ child1_vals + PG2[i] @ child2_vals
-                
-#                 print(f"Gathered parent values: {parent_vals}")
-                
-#                 # Add parent solution
-#                 new_q.extend(parent_vals)
-                
-#                 # Skip both coarsening marks
-#                 i += 2
-#             else:
-#                 print(f"Warning: Unpaired coarsening mark at original element {active[i]}")
-#                 elem_vals = q[i*ngl:(i+1)*ngl]
-#                 new_q.extend(elem_vals)
-#                 i += 1
-    
-#     result = np.array(new_q)
-#     print(f"\nFinal adapted solution shape: {result.shape}")
-#     return result
-
-
-# def adapt_sol(q, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
-#     """
-#     Adapts solution values during mesh adaptation using scatter/gather operations.
-#     Works with original marks array indicating which parent elements need adaptation.
-    
-#     Args:
-#         q (array): Current solution values on original mesh
-#         marks (array): Original refinement markers (-1: coarsen, 0: no change, 1: refine)
-#         active (array): Original active element indices
-#         label_mat (array): Element family relationships [rows, 4]
-#         PS1, PS2 (array): Scatter matrices for child 1 and 2 [nelem, ngl, ngl]
-#         PG1, PG2 (array): Gather matrices for child 1 and 2 [nelem, ngl, ngl]
-#         ngl (int): Number of LGL points per element
-        
-#     Returns:
-#         array: Adapted solution values on new mesh
-#     """
-#     print("\nStarting solution adaptation:")
-#     print(f"Initial q shape: {q.shape}")
-#     print(f"Original active elements: {active}")
-#     print(f"Original marks: {marks}")
-#     print(f"PS1 shape: {PS1.shape}, PS2 shape: {PS2.shape}")
-    
-#     new_q = []
-#     nelem = PS1.shape[0]
-    
-#     for i in range(len(marks)):
-#         print(f"\nProcessing element {i}:")
-#         print(f"Mark value: {marks[i]}")
-        
-#         if marks[i] == 0:
-#             # No adaptation - copy solution values
-#             elem_vals = q[i*ngl:(i+1)*ngl]
-#             print(f"No adaptation - copying values: {elem_vals}")
-#             new_q.extend(elem_vals)
-            
-#         elif marks[i] == 1:
-#             # Refinement - scatter parent solution to children
-#             elem = active[i]
-#             matrix_idx = (elem - 1) % nelem
-#             parent_vals = q[i*ngl:(i+1)*ngl]
-            
-#             print(f"Refinement for element {elem} (matrix index {matrix_idx})")
-#             print(f"Parent values: {parent_vals}")
-            
-#             # Scatter to get child solutions
-#             child1_vals = PS1[matrix_idx] @ parent_vals
-#             child2_vals = PS2[matrix_idx] @ parent_vals
-            
-#             print(f"Child 1 values: {child1_vals}")
-#             print(f"Child 2 values: {child2_vals}")
-            
-#             # Add both children's solutions
-#             new_q.extend(child1_vals)
-#             new_q.extend(child2_vals)
-            
-#         else:  # marks[i] == -1
-#             # Should handle coarsening if needed
-#             print(f"Warning: Coarsening not implemented for mark {i}")
-#             elem_vals = q[i*ngl:(i+1)*ngl]
-#             new_q.extend(elem_vals)
-    
-#     result = np.array(new_q)
-#     print(f"\nFinal adapted solution shape: {result.shape}")
-#     return result
-
-
-# def adapt_sol(q, marks, active, label_mat, PS1, PS2, PG1, PG2, ngl):
-#     """
-#     Adapts solution values during mesh adaptation using scatter/gather operations.
-    
-#     Args:
-#         q (array): Current solution values
-#         marks (array): Refinement markers (-1: coarsen, 0: no change, 1: refine)
-#         active (array): Active element indices
-#         label_mat (array): Element family relationships [rows, 4]
-#         PS1, PS2 (array): Scatter matrices for child 1 and 2
-#         PG1, PG2 (array): Gather matrices for child 1 and 2
-#         ngl (int): Number of LGL points per element
-        
-#     Returns:
-#         array: Adapted solution values
-#     """
-#     new_q = []
-#     i = 0
-    
-#     while i < len(marks):
-#         if marks[i] == 0:
-#             # No change - copy solution values for this element
-#             elem_vals = q[i*ngl:(i+1)*ngl]
-#             new_q.extend(elem_vals)
-#             i += 1
-            
-#         elif marks[i] > 0:
-#             # Refinement - scatter parent solution to children
-#             elem = active[i]
-#             parent_idx = elem - 1
-            
-#             # Get parent solution values
-#             parent_vals = q[i*ngl:(i+1)*ngl]
-            
-#             # Scatter to get child solutions
-#             child1_vals = PS1[parent_idx] @ parent_vals
-#             child2_vals = PS2[parent_idx] @ parent_vals
-            
-#             # Add both children's solutions
-#             new_q.extend(child1_vals)
-#             new_q.extend(child2_vals)
-            
-#             i += 2  # Skip past the refined element
-            
-#         else:  # marks[i] < 0
-#             # Coarsening - gather children solutions to parent
-#             elem = active[i]
-#             parent = label_mat[elem-1][1]
-            
-#             # Find sibling
-#             if i > 0 and label_mat[elem-2][1] == parent and marks[i-1] < 0:
-#                 # Previous element is sibling
-#                 sib_idx = i - 1
-#                 child1_vals = q[sib_idx*ngl:(sib_idx+1)*ngl]
-#                 child2_vals = q[i*ngl:(i+1)*ngl]
-                
-#                 # Gather children solutions to parent
-#                 parent_vals = (PG1[parent-1] @ child1_vals + 
-#                              PG2[parent-1] @ child2_vals)
-                
-#                 # Replace previous solution (sibling) with parent
-#                 new_q = new_q[:-ngl]  # Remove sibling solution
-#                 new_q.extend(parent_vals)
-                
-#                 i += 2  # Skip past both coarsened elements
-                
-#             elif (i + 1 < len(marks) and 
-#                   label_mat[elem][1] == parent and marks[i+1] < 0):
-#                 # Next element is sibling - skip and handle in next iteration
-#                 i += 1
-#                 continue
-#             else:
-#                 # No valid sibling - copy current solution
-#                 elem_vals = q[i*ngl:(i+1)*ngl]
-#                 new_q.extend(elem_vals)
-#                 i += 1
-    
-#     return np.array(new_q)

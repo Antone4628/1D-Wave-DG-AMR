@@ -4,6 +4,17 @@ from numpy.linalg import norm
 from matplotlib.animation import FuncAnimation
 import matplotlib.patches as mpatches
 
+import os
+import sys
+import traceback
+
+PROJECT_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), 
+    # '..',
+    '..'
+))
+sys.path.append(PROJECT_ROOT)
+
 from numerical.dg.basis import lgl_gen, Lagrange_basis
 from numerical.dg.matrices import create_mass_matrix
 from numerical.grid.mesh import create_grid_us

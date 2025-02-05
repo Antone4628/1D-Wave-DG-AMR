@@ -1,8 +1,19 @@
 """
+<<<<<<< HEAD
 DG Wave Solver with Adaptive Mesh Refinement
 
 This module implements a Discontinuous Galerkin solver for the 1D wave equation
 with h-adaptation capabilities using hierarchical mesh refinement.
+=======
+Discontinuous Galerkin Wave Solver with Adaptive Mesh Refinement
+
+This module implements a high-order Discontinuous Galerkin (DG) solver for the 1D wave equation
+with h-adaptation capabilities using hierarchical mesh refinement. The solver uses:
+- Legendre-Gauss-Lobatto (LGL) nodal basis functions
+- Upwind numerical fluxes for interface treatment
+- Low-storage Runge-Kutta time integration
+- Hierarchical mesh refinement with solution projection
+>>>>>>> clean
 """
 
 import numpy as np
@@ -10,12 +21,43 @@ from ..dg.basis import lgl_gen, Lagrange_basis
 from ..dg.matrices import (create_mass_matrix, create_diff_matrix, 
                       Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix)
 from ..grid.mesh import create_grid_us
+<<<<<<< HEAD
 from ..amr.forest import forest, mark
 from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, check_2_1_balance, print_balance_violations, print_mesh_state
+=======
+from ..amr.forest import forest
+from ..amr.adapt import adapt_mesh, adapt_sol, mark
+>>>>>>> clean
 from ..amr.projection import projections
 from .utils import exact_solution
 
 class DGWaveSolver:
+<<<<<<< HEAD
+=======
+    """
+    Discontinuous Galerkin solver for 1D wave equation with Adaptive Mesh Refinement (AMR).
+    
+    This solver implements:
+    - Modal DG discretization with LGL nodes
+    - Hierarchical h-refinement for mesh adaptation
+    - Solution projection between refined/coarsened elements
+    - Low-storage RK time integration
+    
+    Attributes:
+        nop (int): Polynomial order for the DG basis functions
+        ngl (int): Number of LGL points per element (nop + 1)
+        nelem (int): Current number of elements in mesh
+        xelem (array): Element boundary coordinates
+        max_level (int): Maximum allowed refinement level
+        max_elements (int): Maximum allowed number of elements
+        dt (float): Current time step size
+        time (float): Current simulation time
+        icase (int): Test case identifier for initial/exact solutions
+        dx_min (float): Minimum element size based on max refinement
+        q (array): Current solution vector
+        wave_speed (float): Wave propagation speed for the equation
+    """
+>>>>>>> clean
     def __init__(self, nop, xelem, max_elements, max_level, courant_max=0.1, icase=1):
         self.nop = nop
         self.xelem = xelem
@@ -109,6 +151,7 @@ class DGWaveSolver:
                     return False
         
         return True
+<<<<<<< HEAD
 
     # def adapt_mesh(self, criterion=1, marks_override=None, element_budget=None):
     #     """
@@ -194,15 +237,21 @@ class DGWaveSolver:
     #     self._update_matrices()
 
 
+=======
+  
+>>>>>>> clean
     def adapt_mesh(self, criterion=1, marks_override=None, element_budget=None):
         """
         Perform mesh adaptation based on solution properties.
         Respects element_budget constraint.
         """
+<<<<<<< HEAD
         # print("\nBefore adaptation:")
         # print_mesh_state(self.active, self.label_mat)
         # print_balance_violations(self.active, self.label_mat)
         
+=======
+>>>>>>> clean
         # Get refinement marks based on solution properties
         marks = mark(self.active, self.label_mat, self.intma, self.q, criterion)
 
@@ -214,6 +263,7 @@ class DGWaveSolver:
                         print(f"Budget limit reached ({element_budget} elements). Canceling refinement.")
                         marks[idx] = 0
                         continue
+<<<<<<< HEAD
                 
                 if not self.check_size_ratios(idx, mark_val):
                     marks[idx] = 0
@@ -223,6 +273,12 @@ class DGWaveSolver:
 
         # Enforce 2:1 balance
         marks = enforce_2_1_balance(self.label_mat, self.active, marks)
+=======
+                marks[idx] = mark_val
+
+        # Enforce 2:1 balance before adaptation
+        
+>>>>>>> clean
         
         # Store pre-adaptation state
         pre_grid = self.xelem
@@ -237,11 +293,14 @@ class DGWaveSolver:
             self.info_mat, marks
         )
 
+<<<<<<< HEAD
         # After adaptation
         # print("\nAfter adaptation:")
         # print_mesh_state(new_active, self.label_mat)
         print_balance_violations(new_active, self.label_mat)
 
+=======
+>>>>>>> clean
         # Create new grid
         new_coord, new_intma, new_periodicity = create_grid_us(
             self.ngl, new_nelem, npoin_cg, new_npoin_dg, 
@@ -267,6 +326,7 @@ class DGWaveSolver:
         # Update matrices
         self._update_matrices()
 
+<<<<<<< HEAD
     def step(self, dt=None):
         if dt is None:
             dt = self.dt
@@ -282,6 +342,75 @@ class DGWaveSolver:
                        1720146321549.0/2090206949498,
                        3134564353537.0/4481467310338,
                        2277821191437.0/14882151754819])
+=======
+    # def step(self, dt=None):
+    #     if dt is None:
+    #         dt = self.dt
+        
+    #         # Check balance before step
+    #     violations = check_2_1_balance(self.active, self.label_mat)
+    #     if violations:
+    #         print(f"\nBalance violations found BEFORE time step at t={self.time}:")
+    #         for elem, neighbor, level1, level2 in violations:
+    #             print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+    #         # print_mesh_state(self.active, self.label_mat)
+            
+    #     RKA = np.array([0,
+    #                    -567301805773.0/1357537059087,
+    #                    -2404267990393.0/2016746695238,
+    #                    -3550918686646.0/2091501179385,
+    #                    -1275806237668.0/842570457699])
+        
+    #     RKB = np.array([1432997174477.0/9575080441755,
+    #                    5161836677717.0/13612068292357,
+    #                    1720146321549.0/2090206949498,
+    #                    3134564353537.0/4481467310338,
+    #                    2277821191437.0/14882151754819])
+        
+    #     dq = np.zeros(self.npoin_dg)
+    #     qp = self.q.copy()
+        
+    #     for s in range(len(RKA)):
+    #         R = self.Dhat @ qp
+            
+    #         for i in range(self.npoin_dg):
+    #             dq[i] = RKA[s]*dq[i] + dt*R[i]
+    #             qp[i] = qp[i] + RKB[s]*dq[i]
+                
+    #         if self.periodicity[-1] == self.periodicity[0]:
+    #             qp[-1] = qp[0]
+                
+    #     self.q = qp
+    #     self.time += dt
+
+    #         # Check balance after step
+    #     violations = check_2_1_balance(self.active, self.label_mat)
+    #     if violations:
+    #         print(f"\nBalance violations found AFTER time step at t={self.time}:")
+    #         for elem, neighbor, level1, level2 in violations:
+    #             print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+    #         # print_mesh_state(self.active, self.label_mat)
+    def step(self, dt=None):
+        """
+        Take single time step with balance verification.
+        """
+        if dt is None:
+            dt = self.dt
+                
+        # Check balance before step
+        
+        RKA = np.array([0,
+                    -567301805773.0/1357537059087,
+                    -2404267990393.0/2016746695238,
+                    -3550918686646.0/2091501179385,
+                    -1275806237668.0/842570457699])
+        
+        RKB = np.array([1432997174477.0/9575080441755,
+                    5161836677717.0/13612068292357,
+                    1720146321549.0/2090206949498,
+                    3134564353537.0/4481467310338,
+                    2277821191437.0/14882151754819])
+>>>>>>> clean
         
         dq = np.zeros(self.npoin_dg)
         qp = self.q.copy()
@@ -298,13 +427,20 @@ class DGWaveSolver:
                 
         self.q = qp
         self.time += dt
+<<<<<<< HEAD
         
+=======
+
+        # Check balance after step  
+
+>>>>>>> clean
     def solve(self, time_final):
         times = [self.time]
         solutions = [self.q.copy()]
         grids = [self.xelem.copy()]
         coords = [self.coord.copy()]
         
+<<<<<<< HEAD
         while self.time < time_final:
             dt = min(self.dt, time_final - self.time)
             
@@ -312,12 +448,73 @@ class DGWaveSolver:
             
             self.step(dt)
             
+=======
+        step_count = 0
+        while self.time < time_final:
+            dt = min(self.dt, time_final - self.time)
+            print(f"\nTimestep {step_count}, Time: {self.time:.3f}")
+            
+            # Single adapt_mesh call 
+            self.adapt_mesh()
+            
+            # Take time step
+            self.step(dt)
+            
+            # Store results
+>>>>>>> clean
             times.append(self.time)
             solutions.append(self.q.copy())
             grids.append(self.xelem.copy())
             coords.append(self.coord.copy())
+<<<<<<< HEAD
             
         return times, solutions, grids, coords
+=======
+            step_count += 1
+            
+        return times, solutions, grids, coords 
+    # def solve(self, time_final):
+    #     times = [self.time]
+    #     solutions = [self.q.copy()]
+    #     grids = [self.xelem.copy()]
+    #     coords = [self.coord.copy()]
+        
+    #     step_count = 0
+    #     while self.time < time_final:
+    #         dt = min(self.dt, time_final - self.time)
+            
+    #         print(f"\nTimestep {step_count}, Time: {self.time:.3f}")
+        
+    #         # Check balance before adaptation
+    #         violations = check_2_1_balance(self.active, self.label_mat, debug=True)
+    #         if violations:
+    #             print("Pre-adaptation violations found:")
+    #             for elem, neighbor, level1, level2 in violations:
+    #                 print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+
+    #         self.adapt_mesh()
+
+    #                 # Check balance after adaptation
+    #         violations = check_2_1_balance(self.active, self.label_mat, debug=True)
+    #         if violations:
+    #             print("Post-adaptation violations found:")
+    #             for elem, neighbor, level1, level2 in violations:
+    #                 print(f"Elements {elem}({level1}) and {neighbor}({level2})")
+                
+    #             # Print detailed mesh state when violation found
+    #             print("\nDetailed mesh state at violation:")
+    #             # print_mesh_state(self.active, self.label_mat)
+            
+    #         self.step(dt)
+            
+    #         times.append(self.time)
+    #         solutions.append(self.q.copy())
+    #         grids.append(self.xelem.copy())
+    #         coords.append(self.coord.copy())
+    #         step_count += 1
+            
+    #     return times, solutions, grids, coords
+>>>>>>> clean
 
     def get_exact_solution(self):
         qe, _ = exact_solution(self.coord, self.npoin_dg, self.time, self.icase)

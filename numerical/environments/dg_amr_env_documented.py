@@ -2,8 +2,12 @@
 dg_amr_env_documented.py
 
 A detailed implementation of a Gymnasium environment for Adaptive Mesh Refinement (AMR) 
+<<<<<<< HEAD
 using Deep Reinforcement Learning, based on:
 'Deep reinforcement learning for adaptive mesh refinement' (Foucart et al., 2023)
+=======
+using Deep Reinforcement Learning.
+>>>>>>> clean
 
 This environment allows an RL agent to learn AMR strategies by:
 1. Observing local solution properties (jumps, values)
