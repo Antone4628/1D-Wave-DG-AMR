@@ -1,8 +1,12 @@
 """
-DG Wave Solver with Adaptive Mesh Refinement
+Discontinuous Galerkin Wave Solver with Adaptive Mesh Refinement
 
-This module implements a Discontinuous Galerkin solver for the 1D wave equation
-with h-adaptation capabilities using hierarchical mesh refinement.
+This module implements a high-order Discontinuous Galerkin (DG) solver for the 1D wave equation
+with h-adaptation capabilities using hierarchical mesh refinement. The solver uses:
+- Legendre-Gauss-Lobatto (LGL) nodal basis functions
+- Upwind numerical fluxes for interface treatment
+- Low-storage Runge-Kutta time integration
+- Hierarchical mesh refinement with solution projection
 """
 
 import numpy as np
@@ -16,6 +20,29 @@ from ..amr.projection import projections
 from .utils import exact_solution
 
 class DGWaveSolver:
+    """
+    Discontinuous Galerkin solver for 1D wave equation with Adaptive Mesh Refinement (AMR).
+    
+    This solver implements:
+    - Modal DG discretization with LGL nodes
+    - Hierarchical h-refinement for mesh adaptation
+    - Solution projection between refined/coarsened elements
+    - Low-storage RK time integration
+    
+    Attributes:
+        nop (int): Polynomial order for the DG basis functions
+        ngl (int): Number of LGL points per element (nop + 1)
+        nelem (int): Current number of elements in mesh
+        xelem (array): Element boundary coordinates
+        max_level (int): Maximum allowed refinement level
+        max_elements (int): Maximum allowed number of elements
+        dt (float): Current time step size
+        time (float): Current simulation time
+        icase (int): Test case identifier for initial/exact solutions
+        dx_min (float): Minimum element size based on max refinement
+        q (array): Current solution vector
+        wave_speed (float): Wave propagation speed for the equation
+    """
     def __init__(self, nop, xelem, max_elements, max_level, courant_max=0.1, icase=1):
         self.nop = nop
         self.xelem = xelem
