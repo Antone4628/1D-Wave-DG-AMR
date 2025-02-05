@@ -213,17 +213,37 @@ def Matrix_DSS(Me, De, u, intma, periodicity, ngl, nelem, npoin):
     """
     #Form global matrices
 
-    # print(f'npoin passed to DSS: {npoin}')
-    M=np.zeros([npoin,npoin])
-    D=np.zeros([npoin,npoin])
+    #Adding debug prints to check assembly.
+    M = np.zeros([npoin,npoin])
+    D = np.zeros([npoin,npoin])
+    
+    # print(f"Matrix_DSS Debug:")
+    # print(f"Me shape: {Me.shape}")
+    # print(f"Number of elements: {nelem}")
+    # print(f"Points per element: {ngl}")
+    # print(f"Total points: {npoin}")
 
     for e in range(nelem):
         for i in range(ngl):
             ip = periodicity[intma[i][e]]
             for j in range(ngl):
-                jp=periodicity[intma[j][e]]
-                M[ip][jp]=M[ip][jp]+Me[e][i][j]
-                D[ip][jp]=D[ip][jp]+u*De[i][j]
+                jp = periodicity[intma[j][e]]
+                M[ip][jp] = M[ip][jp] + Me[e][i][j]
+                D[ip][jp] = D[ip][jp] + u*De[i][j]
+                
+    print(f"Mass matrix condition number: {np.linalg.cond(M)}")
+    return M, D
+    # # print(f'npoin passed to DSS: {npoin}')
+    # M=np.zeros([npoin,npoin])
+    # D=np.zeros([npoin,npoin])
 
-    return M,D
+    # for e in range(nelem):
+    #     for i in range(ngl):
+    #         ip = periodicity[intma[i][e]]
+    #         for j in range(ngl):
+    #             jp=periodicity[intma[j][e]]
+    #             M[ip][jp]=M[ip][jp]+Me[e][i][j]
+    #             D[ip][jp]=D[ip][jp]+u*De[i][j]
+
+    # return M,D
 
