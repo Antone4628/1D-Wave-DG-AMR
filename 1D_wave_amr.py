@@ -64,7 +64,7 @@ space_method_type = 'dg'    #CG or DG
 flux_type = 2               #1=centered flux and 2=upwind
 
 Courant_max = 0.1           #dt controlled by courant_max
-time_final = .25        #final time in revolutions
+time_final = .2        #final time in revolutions
 iplot_solution = 1          #Switch to Plor of Not
 iplot_matrices = 0          #??????
 

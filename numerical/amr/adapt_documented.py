@@ -9,6 +9,80 @@ This module implements mesh adaptation capabilities including:
 
 import numpy as np
 
+def mark(active_grid, label_mat, intma, q, criterion):
+    """
+    Mark elements for refinement/coarsening based on solution criteria.
+    
+    Args:
+        active_grid (array): Currently active element indices
+        label_mat (array): Element family relationships [rows, 4]
+        intma (array): Element-node connectivity
+        q (array): Solution values
+        criterion (int): Determines which marking criterion to use
+            - criterion = 1: refine when solution > 0.5. Used for building out AMR
+            - criterion = 2: Brennan's Criterion
+        
+    Returns:
+        marks (array): Element markers (-1:derefine, 0:no change, 1:refine)
+            
+    Notes:
+        - Elements with solution values >= 0.5 are marked for refinement
+        - Elements with solution values < 0.5 are marked for derefinement
+        - Derefinement only occurs if both siblings meet criteria
+    """
+    n_active = len(active_grid)
+    marks = np.zeros(n_active, dtype=int)
+    refs = []
+    defs = []
+    
+    # Pre-compute label matrix lookups
+    parents = label_mat[active_grid - 1, 1]
+    children = label_mat[active_grid - 1, 2:4]
+    
+    # Process each active element
+    for idx, (elem, parent) in enumerate(zip(active_grid, parents)):
+        # Get element solution values
+        elem_nodes = intma[:, idx]
+        elem_sols = q[elem_nodes]
+        max_sol = np.max(elem_sols)
+        
+        # Check refinement criteria
+        if (criterion == 1):
+            if max_sol >= 0.5 and children[idx, 0] != 0:
+            # if max_sol >= - 0.5 and children[idx, 0] != 0:
+                refs.append(elem)
+                marks[idx] = 1
+                continue
+                
+            # Check coarsening criteria
+            if max_sol < 0.5 and parent != 0:
+                # Find sibling
+                sibling = None
+                if elem > 1 and label_mat[elem-2, 1] == parent:
+                    sibling = elem - 1
+                    sib_idx = idx - 1
+                elif elem < len(label_mat) and label_mat[elem, 1] == parent:
+                    sibling = elem + 1
+                    sib_idx = idx + 1
+                    
+                # Verify sibling status
+                if sibling in active_grid:
+                    sib_nodes = intma[:, sib_idx]
+                    sib_sols = q[sib_nodes]
+                    
+                    # Mark for coarsening if sibling also qualifies
+                    if np.max(sib_sols) < 0.5 and sibling not in defs:
+                        marks[idx] = marks[sib_idx] = -1
+                        defs.extend([elem, sibling])
+        
+        if (criterion == 2):
+            #Brennan will create criterion here
+            pass
+
+    
+    return  marks
+
+
 def adapt_mesh(nop, cur_grid, active, label_mat, info_mat, marks):
     """
     Unified mesh adaptation routine handling both refinement and derefinement.

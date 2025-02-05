@@ -427,6 +427,8 @@ class DGAMREnv(gym.Env):
         #     self.current_element = new_current
         
         return observation, reward, terminated, truncated, info
+    
+    
     # def step(self, action: int) -> Tuple[Dict[str, np.ndarray], float, bool, bool, Dict[str, Any]]:
     #     """
     #     Execute one step of the environment.

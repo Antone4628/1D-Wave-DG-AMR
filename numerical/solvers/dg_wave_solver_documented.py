@@ -14,8 +14,8 @@ from ..dg.basis import lgl_gen, Lagrange_basis
 from ..dg.matrices import (create_mass_matrix, create_diff_matrix, 
                       Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix)
 from ..grid.mesh import create_grid_us
-from ..amr.forest import forest, mark
-from ..amr.adapt import adapt_mesh, adapt_sol
+from ..amr.forest import forest
+from ..amr.adapt import adapt_mesh, adapt_sol, mark
 from ..amr.projection import projections
 from .utils import exact_solution
 
