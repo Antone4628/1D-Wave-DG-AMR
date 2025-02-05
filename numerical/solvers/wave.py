@@ -5,8 +5,8 @@ from numpy.linalg import norm
 from ..dg.matrices import create_mass_matrix, create_diff_matrix, Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix
 from ..dg.basis import *
 from ..grid.mesh import create_grid_us
-from ..amr.forest import forest, mark, get_active_levels, print_active_levels
-from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, print_balance_violations
+from ..amr.forest import forest
+from ..amr.adapt import adapt_mesh, adapt_sol,mark
 from ..amr.projection import*
 from .utils import *
 
@@ -173,9 +173,7 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
 
             # print(f'pre ratio enforcement marks: {marks}')
 
-            marks = enforce_2_1_balance(label_mat, active, marks)
-
- 
+        
 
             # print(f'post ratio enforcement marks: {marks}')
 
@@ -198,10 +196,6 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
             new_coord, new_intma, periodicity = create_grid_us(ngl, new_nelem, npoin_cg, new_npoin_dg, xgl, new_grid)
 
 
-            # Print state after enforcement
-            print_balance_violations(new_active, label_mat)
-            
-            # print(f'post-adaptation:')
             # get_active_levels(new_active, label_mat)
             # print_active_levels(new_active, label_mat)
 
