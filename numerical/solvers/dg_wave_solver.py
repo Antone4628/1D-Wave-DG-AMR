@@ -155,8 +155,6 @@ class DGWaveSolver:
                         continue
                 marks[idx] = mark_val
 
-        # Enforce 2:1 balance before adaptation
-        
         
         # Store pre-adaptation state
         pre_grid = self.xelem
@@ -196,53 +194,7 @@ class DGWaveSolver:
         # Update matrices
         self._update_matrices()
 
-    # def step(self, dt=None):
-    #     if dt is None:
-    #         dt = self.dt
-        
-    #         # Check balance before step
-    #     violations = check_2_1_balance(self.active, self.label_mat)
-    #     if violations:
-    #         print(f"\nBalance violations found BEFORE time step at t={self.time}:")
-    #         for elem, neighbor, level1, level2 in violations:
-    #             print(f"Elements {elem}({level1}) and {neighbor}({level2})")
-    #         # print_mesh_state(self.active, self.label_mat)
-            
-    #     RKA = np.array([0,
-    #                    -567301805773.0/1357537059087,
-    #                    -2404267990393.0/2016746695238,
-    #                    -3550918686646.0/2091501179385,
-    #                    -1275806237668.0/842570457699])
-        
-    #     RKB = np.array([1432997174477.0/9575080441755,
-    #                    5161836677717.0/13612068292357,
-    #                    1720146321549.0/2090206949498,
-    #                    3134564353537.0/4481467310338,
-    #                    2277821191437.0/14882151754819])
-        
-    #     dq = np.zeros(self.npoin_dg)
-    #     qp = self.q.copy()
-        
-    #     for s in range(len(RKA)):
-    #         R = self.Dhat @ qp
-            
-    #         for i in range(self.npoin_dg):
-    #             dq[i] = RKA[s]*dq[i] + dt*R[i]
-    #             qp[i] = qp[i] + RKB[s]*dq[i]
-                
-    #         if self.periodicity[-1] == self.periodicity[0]:
-    #             qp[-1] = qp[0]
-                
-    #     self.q = qp
-    #     self.time += dt
-
-    #         # Check balance after step
-    #     violations = check_2_1_balance(self.active, self.label_mat)
-    #     if violations:
-    #         print(f"\nBalance violations found AFTER time step at t={self.time}:")
-    #         for elem, neighbor, level1, level2 in violations:
-    #             print(f"Elements {elem}({level1}) and {neighbor}({level2})")
-    #         # print_mesh_state(self.active, self.label_mat)
+    
     def step(self, dt=None):
         """
         Take single time step with balance verification.

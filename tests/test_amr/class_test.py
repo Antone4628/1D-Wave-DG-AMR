@@ -11,6 +11,7 @@ from matplotlib.animation import FuncAnimation
 
 import os
 import sys
+import os.path
 # Get absolute path to project root
 
 
@@ -20,6 +21,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(
     '..'
 ))
 sys.path.append(PROJECT_ROOT)
+
+ANIMATIONS_DIR = os.path.join(PROJECT_ROOT, 'animations')
+os.makedirs(ANIMATIONS_DIR, exist_ok=True)
 
 from numerical.solvers.dg_wave_solver_documented import DGWaveSolver
 
@@ -103,7 +107,8 @@ anim = FuncAnimation(
 )
 
 # Save animation
-gif_title = 'Solver_Class_1D_Wave_AMR_refdef_GIF.gif'
+# gif_title = 'Solver_Class_1D_Wave_AMR_refdef_GIF.gif'
+gif_title = os.path.join(ANIMATIONS_DIR, 'Solver_Class_1D_Wave_AMR_refdef_GIF.gif')
 anim.save(gif_title, writer="pillow", fps=50)
 
 plt.show()
