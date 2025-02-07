@@ -15,7 +15,7 @@ from ..dg.matrices import (create_mass_matrix, create_diff_matrix,
                       Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix)
 from ..grid.mesh import create_grid_us
 from ..amr.forest import forest
-from ..amr.adapt import adapt_mesh, adapt_sol, mark
+from ..amr.adapt import adapt_mesh, adapt_sol, mark, check_balance, enforce_balance
 from ..amr.projection import projections
 from .utils import exact_solution
 
@@ -190,6 +190,9 @@ class DGWaveSolver:
         self.xelem = new_grid
         self.npoin_dg = new_npoin_dg
         self.periodicity = new_periodicity
+
+        # Add balancing loop here
+        
         
         # Update matrices
         self._update_matrices()

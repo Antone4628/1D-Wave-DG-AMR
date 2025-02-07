@@ -212,45 +212,66 @@ def ti_LSRK_amr(q0, Dhat, periodicity, xgl, xelem, wnq, xnq, psi, dpsi,u, time, 
             npoin_dg = new_npoin_dg
 
             # Enforce balance:
-            bal_ctr = 0
-            while (bal_ctr <= max_level):
-                if check_balance(active, label_mat):
-                    # print(f'grid is balanced. level: {level}')
-                    bal_ctr = max_level + 1
-                else:
-                    print(f'balancing grid. time step: {anim}, adaptation step: {level}, balance step: {bal_ctr}')
+            if not check_balance(active, label_mat):
+                bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, bal_periodicity = enforce_balance(active, 
+                                                                                                    label_mat, 
+                                                                                                    grid, 
+                                                                                                    info_mat, 
+                                                                                                    nop, 
+                                                                                                    coord, 
+                                                                                                    PS1, PS2, PG1, PG2, 
+                                                                                                    ngl, xgl, 
+                                                                                                    qp, max_level)
+            
+                qp = bal_q
+                active = bal_active
+                nelem = bal_nelem
+                intma = bal_intma
+                coord = bal_coord
+                grid = bal_grid
+                npoin_dg = bal_npoin_dg
+                periodicity = bal_periodicity
 
-                    bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, bal_periodicity = enforce_balance(active, 
-                                                                                                                 label_mat, 
-                                                                                                                 grid, 
-                                                                                                                 info_mat, 
-                                                                                                                 nop, 
-                                                                                                                 coord, 
-                                                                                                                 PS1, PS2, PG1, PG2, 
-                                                                                                                 ngl, xgl, 
-                                                                                                                 qp)
+            # #~~~~~~~~~~~~~~~~~~~~~~~~~~~``
+            # bal_ctr = 0
+            # while (bal_ctr <= max_level):
+            #     if check_balance(active, label_mat):
+            #         # print(f'grid is balanced. level: {level}')
+            #         bal_ctr = max_level + 1
+            #     else:
+            #         print(f'balancing grid. time step: {anim}, adaptation step: {level}, balance step: {bal_ctr}')
 
-                    # bal_marks = balance_mark(active, label_mat)
-                    # pre_active = active  
-                    # pre_grid = grid
-                    # pre_coord = coord
+            #         bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, bal_periodicity = enforce_balance(active, 
+            #                                                                                                      label_mat, 
+            #                                                                                                      grid, 
+            #                                                                                                      info_mat, 
+            #                                                                                                      nop, 
+            #                                                                                                      coord, 
+            #                                                                                                      PS1, PS2, PG1, PG2, 
+            #                                                                                                      ngl, xgl, 
+            #                                                                                                      qp)
 
-                    # bal_grid, bal_active, ref_marks, bal_nelem, npoin_cg, bal_npoin_dg = adapt_mesh(nop, grid, active, label_mat, info_mat, bal_marks)
-                    # bal_coord, bal_intma, periodicity = create_grid_us(ngl, bal_nelem, npoin_cg, bal_npoin_dg, xgl, bal_grid)
-                    # bal_q = adapt_sol(qp, pre_coord, bal_marks, pre_active, label_mat, PS1, PS2, PG1, PG2, ngl)
+            #         # bal_marks = balance_mark(active, label_mat)
+            #         # pre_active = active  
+            #         # pre_grid = grid
+            #         # pre_coord = coord
 
-                    # Update for next level
-                    qp = bal_q
-                    active = bal_active
-                    nelem = bal_nelem
-                    intma = bal_intma
-                    coord = bal_coord
-                    grid = bal_grid
-                    npoin_dg = bal_npoin_dg
-                    periodicity = bal_periodicity
+            #         # bal_grid, bal_active, ref_marks, bal_nelem, npoin_cg, bal_npoin_dg = adapt_mesh(nop, grid, active, label_mat, info_mat, bal_marks)
+            #         # bal_coord, bal_intma, periodicity = create_grid_us(ngl, bal_nelem, npoin_cg, bal_npoin_dg, xgl, bal_grid)
+            #         # bal_q = adapt_sol(qp, pre_coord, bal_marks, pre_active, label_mat, PS1, PS2, PG1, PG2, ngl)
 
-                    bal_ctr += 1
+            #         # Update for next level
+            #         qp = bal_q
+            #         active = bal_active
+            #         nelem = bal_nelem
+            #         intma = bal_intma
+            #         coord = bal_coord
+            #         grid = bal_grid
+            #         npoin_dg = bal_npoin_dg
+            #         periodicity = bal_periodicity
 
+            #         bal_ctr += 1
+            # #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~``
 
             # print(f'balance marks: {balance_marks}')
             # new_grid, new_active, ref_marks, new_nelem, npoin_cg, new_npoin_dg = adapt_mesh(nop, grid, active, label_mat, info_mat, balance_marks)
