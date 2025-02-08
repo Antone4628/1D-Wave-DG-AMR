@@ -25,7 +25,8 @@ sys.path.append(PROJECT_ROOT)
 ANIMATIONS_DIR = os.path.join(PROJECT_ROOT, 'animations')
 os.makedirs(ANIMATIONS_DIR, exist_ok=True)
 
-from numerical.solvers.dg_wave_solver_documented import DGWaveSolver
+# from numerical.solvers.dg_wave_solver_documented import DGWaveSolver
+from numerical.solvers.dg_wave_solver import DGWaveSolver
 
 
 # Define initial mesh
@@ -41,7 +42,7 @@ print(f'Smallest initial element has dx: {np.min(differences)}')
 max_level = 4         # Max level of refinement
 nop = 4              # Polynomial order
 courant_max = 0.1    # CFL number
-time_final = 0.15    # Final time
+time_final = 0.2    # Final time
 icase = 1            # Test case number (1: Gaussian)
 
 # Calculate smallest possible element size after refinement
@@ -111,4 +112,4 @@ anim = FuncAnimation(
 gif_title = os.path.join(ANIMATIONS_DIR, 'Solver_Class_1D_Wave_AMR_refdef_GIF.gif')
 anim.save(gif_title, writer="pillow", fps=50)
 
-plt.show()
+# plt.show()
