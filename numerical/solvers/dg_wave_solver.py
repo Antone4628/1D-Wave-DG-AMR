@@ -26,8 +26,12 @@ from ..amr.forest import forest, mark
 from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, check_2_1_balance, print_balance_violations, print_mesh_state
 =======
 from ..amr.forest import forest
+<<<<<<< HEAD
 from ..amr.adapt import adapt_mesh, adapt_sol, mark
 >>>>>>> clean
+=======
+from ..amr.adapt import adapt_mesh, adapt_sol, mark, check_balance, enforce_balance
+>>>>>>> balance
 from ..amr.projection import projections
 from .utils import exact_solution
 
@@ -118,38 +122,39 @@ class DGWaveSolver:
         R = self.D - self.F
         self.Dhat = np.linalg.solve(self.M, R)
         
-    def check_size_ratios(self, element_idx: int, action: int) -> bool:
-        elem = self.active[element_idx]
-        curr_size = self.info_mat[elem-1][4] - self.info_mat[elem-1][3]
+    # def check_size_ratios(self, element_idx: int, action: int) -> bool:
+    #     elem = self.active[element_idx]
+    #     curr_size = self.info_mat[elem-1][4] - self.info_mat[elem-1][3]
         
-        neighbors = []
-        for i in range(max(1, elem-2), elem):
-            idx = np.where(self.active == i)[0]
-            if len(idx) > 0:
-                neighbors.append(i)
-        for i in range(elem+1, min(elem+3, len(self.label_mat)+1)):
-            idx = np.where(self.active == i)[0]
-            if len(idx) > 0:
-                neighbors.append(i)
+    #     neighbors = []
+    #     for i in range(max(1, elem-2), elem):
+    #         idx = np.where(self.active == i)[0]
+    #         if len(idx) > 0:
+    #             neighbors.append(i)
+    #     for i in range(elem+1, min(elem+3, len(self.label_mat)+1)):
+    #         idx = np.where(self.active == i)[0]
+    #         if len(idx) > 0:
+    #             neighbors.append(i)
                 
-        if action == 1:
-            new_size = curr_size / 2
-            for neighbor in neighbors:
-                neighbor_size = self.info_mat[neighbor-1][4] - self.info_mat[neighbor-1][3]
-                if neighbor_size/new_size > 2:
-                    return False
-                if neighbor_size/new_size > 2:
-                    return False
+    #     if action == 1:
+    #         new_size = curr_size / 2
+    #         for neighbor in neighbors:
+    #             neighbor_size = self.info_mat[neighbor-1][4] - self.info_mat[neighbor-1][3]
+    #             if neighbor_size/new_size > 2:
+    #                 return False
+    #             if neighbor_size/new_size > 2:
+    #                 return False
                     
-        elif action == -1:
-            new_size = curr_size * 2
-            for neighbor in neighbors:
-                neighbor_size = self.info_mat[neighbor-1][4] - self.info_mat[neighbor-1][3]
-                if new_size/neighbor_size > 2:
-                    return False
-                if new_size/neighbor_size > 2:
-                    return False
+    #     elif action == -1:
+    #         new_size = curr_size * 2
+    #         for neighbor in neighbors:
+    #             neighbor_size = self.info_mat[neighbor-1][4] - self.info_mat[neighbor-1][3]
+    #             if new_size/neighbor_size > 2:
+    #                 return False
+    #             if new_size/neighbor_size > 2:
+    #                 return False
         
+<<<<<<< HEAD
         return True
 <<<<<<< HEAD
 
@@ -238,6 +243,9 @@ class DGWaveSolver:
 
 
 =======
+=======
+    #     return True
+>>>>>>> balance
   
 >>>>>>> clean
     def adapt_mesh(self, criterion=1, marks_override=None, element_budget=None):
@@ -276,9 +284,12 @@ class DGWaveSolver:
 =======
                 marks[idx] = mark_val
 
+<<<<<<< HEAD
         # Enforce 2:1 balance before adaptation
         
 >>>>>>> clean
+=======
+>>>>>>> balance
         
         # Store pre-adaptation state
         pre_grid = self.xelem
@@ -322,10 +333,35 @@ class DGWaveSolver:
         self.xelem = new_grid
         self.npoin_dg = new_npoin_dg
         self.periodicity = new_periodicity
+
+        # Add balancing loop here
+        if not check_balance(self.active, self.label_mat):
+            bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, bal_periodicity = enforce_balance(self.active, 
+                                                                                                self.label_mat, 
+                                                                                                self.xelem, 
+                                                                                                self.info_mat, 
+                                                                                                self.nop, 
+                                                                                                self.coord, 
+                                                                                                self.PS1, self.PS2, self.PG1, self.PG2, 
+                                                                                                self.ngl, self.xgl, 
+                                                                                                self.q, self.max_level)
+
+        
+            self.q = bal_q
+            self.active = bal_active
+            self.nelem = bal_nelem
+            self.intma = bal_intma
+            self.coord = bal_coord
+            self.xelem = bal_grid
+            self.npoin_dg = bal_npoin_dg
+            self.periodicity = bal_periodicity
+
+
         
         # Update matrices
         self._update_matrices()
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     def step(self, dt=None):
         if dt is None:
@@ -390,6 +426,9 @@ class DGWaveSolver:
     #         for elem, neighbor, level1, level2 in violations:
     #             print(f"Elements {elem}({level1}) and {neighbor}({level2})")
     #         # print_mesh_state(self.active, self.label_mat)
+=======
+    
+>>>>>>> balance
     def step(self, dt=None):
         """
         Take single time step with balance verification.
@@ -452,7 +491,7 @@ class DGWaveSolver:
         step_count = 0
         while self.time < time_final:
             dt = min(self.dt, time_final - self.time)
-            print(f"\nTimestep {step_count}, Time: {self.time:.3f}")
+            # print(f"\nTimestep {step_count}, Time: {self.time:.3f}")
             
             # Single adapt_mesh call 
             self.adapt_mesh()

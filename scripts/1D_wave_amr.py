@@ -4,6 +4,7 @@ from numpy.linalg import norm
 from matplotlib.animation import FuncAnimation
 import os
 import sys
+import os.path
 import traceback
 
 PROJECT_ROOT = os.path.abspath(os.path.join(
@@ -12,6 +13,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(
     '..'
 ))
 sys.path.append(PROJECT_ROOT)
+
+ANIMATIONS_DIR = os.path.join(PROJECT_ROOT, 'animations')
+os.makedirs(ANIMATIONS_DIR, exist_ok=True)
 
 from numerical.dg.basis import lgl_gen, Lagrange_basis
 from numerical.dg.matrices import *
@@ -202,7 +206,11 @@ anim = FuncAnimation(fig = fig,
 
 gif_title = '1D_Wave_AMR_refdef'+'_GIF.gif'
 # Save as gif file
-anim.save(gif_title, writer = "pillow", fps=50 )
+# anim.save(gif_title, writer = "pillow", fps=50 )
+gif_title = os.path.join(ANIMATIONS_DIR, '1D_Wave_AMR_refdef_GIF.gif')
+anim.save(gif_title, writer="pillow", fps=50)
+# plt.show()
+# plt.close()
 # HTML(anim.to_html5_video())
 # content/drive/MyDrive/ColabNotebooks/Galerkin/
 

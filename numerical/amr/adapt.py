@@ -1,5 +1,6 @@
 import numpy as np
-
+from .forest import get_active_levels
+from ..grid.mesh import create_grid_us
 
 #~~~~~~~~~~~~~~~~~~~ single refine/coarsen routine ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -76,6 +77,78 @@ def mark(active_grid, label_mat, intma, q, criterion):
     
     return  marks
 
+
+
+def check_balance(active_grid, label_mat):
+    """
+    Check balance of active grid. 
+    Returns True if balanced, False otherwise.
+    """
+    levels = get_active_levels(active_grid, label_mat)
+    balance_status = np.all(np.abs(np.diff(levels)) <= 1)
+    return balance_status
+
+def balance_mark(active, label_mat):
+    n_active = len(active)
+    balance_marks = np.zeros(n_active, dtype=int)
+    levels = get_active_levels(active, label_mat)
+
+    for e in range(n_active):
+        # Get level of element and left neighbor
+        elem_level = levels[e]
+        left_level = levels[e-1]
+        # Check level difference between elements
+        level_difference = abs(elem_level - left_level)
+
+        if level_difference > 1:
+            # Mark loest level element for refinement
+            if elem_level > left_level:
+                #left level is lower, mark left element for refinement
+                balance_marks[e-1] = 1
+            elif elem_level < left_level:
+                #elem level is lower, mark current element for refinement
+                balance_marks[e] = 1
+
+    return balance_marks
+
+
+def enforce_balance(active, label_mat, grid, info_mat, nop, coord, PS1, PS2, PG1, PG2, ngl, xgl, qp, max_level):
+    """
+    Single step 2:1 Balance enforcement. 
+    This routine handles balance marking, mesh adapting, and solution adapting.
+    This routine is called only once per adaptation step.
+    """
+    bal_ctr = 0
+    while (bal_ctr <= max_level):
+        if check_balance(active, label_mat):
+            # print(f'grid is balanced. level: {level}')
+            bal_ctr = max_level + 1
+        else:
+            # print(f'balancing grid. balance step: {bal_ctr}')
+
+
+            bal_marks = balance_mark(active, label_mat)
+            pre_active = active  
+            pre_grid = grid
+            pre_coord = coord
+
+            bal_grid, bal_active, ref_marks, bal_nelem, npoin_cg, bal_npoin_dg = adapt_mesh(nop, grid, active, label_mat, info_mat, bal_marks)
+            bal_coord, bal_intma, bal_periodicity = create_grid_us(ngl, bal_nelem, npoin_cg, bal_npoin_dg, xgl, bal_grid)
+            bal_q = adapt_sol(qp, pre_coord, bal_marks, pre_active, label_mat, PS1, PS2, PG1, PG2, ngl)
+
+            # Update for next level
+            qp = bal_q
+            active = bal_active
+            nelem = bal_nelem
+            intma = bal_intma
+            coord = bal_coord
+            grid = bal_grid
+            npoin_dg = bal_npoin_dg
+            periodicity = bal_periodicity
+
+            bal_ctr += 1
+
+    return bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, bal_periodicity
 
 def adapt_mesh(nop, cur_grid, active, label_mat, info_mat, marks):
     """
@@ -731,3 +804,28 @@ def print_mesh_state(active, label_mat):
 
 
 
+
+# def enforce_balance(active, label_mat, cur_grid, info_mat, nop, cur_coords, PS1, PS2, PG1, PG2, ngl, xgl, qp):
+#     """
+#     Single step 2:1 Balance enforcement. This routine handles balance marking, mesh adapting, and solution adapting. THIS NEEDS TO BE CALLED IN A LOOP
+#     """
+    
+#     bal_marks = balance_mark(active, label_mat)
+#     pre_active = active  
+#     pre_grid = cur_grid
+#     pre_coord = cur_coords
+
+#     bal_grid, bal_active, ref_marks, bal_nelem, npoin_cg, bal_npoin_dg = adapt_mesh(nop, pre_grid, active, label_mat, info_mat, bal_marks)
+#     bal_coord, bal_intma, periodicity = create_grid_us(ngl, bal_nelem, npoin_cg, bal_npoin_dg, xgl, bal_grid)
+#     bal_q = adapt_sol(qp, pre_coord, bal_marks, pre_active, label_mat, PS1, PS2, PG1, PG2, ngl)
+
+#     # Update for next level
+#     # qp = bal_q
+#     # active = bal_active
+#     # nelem = bal_nelem
+#     # intma = bal_intma
+#     # coord = bal_coord
+#     # grid = bal_grid
+#     # npoin_dg = bal_npoin_dg
+
+#     return bal_q, bal_active, bal_nelem, bal_intma, bal_coord, bal_grid, bal_npoin_dg, periodicity
