@@ -4,18 +4,9 @@ from time import sleep
 from numpy.linalg import norm
 from ..dg.matrices import create_mass_matrix, create_diff_matrix, Fmatrix_upwind_flux, Matrix_DSS, create_RM_matrix
 from ..dg.basis import *
-from ..grid.mesh import create_grid_us
-<<<<<<< HEAD
-from ..amr.forest import forest, mark, get_active_levels, print_active_levels
-from ..amr.adapt import adapt_mesh, adapt_sol, enforce_2_1_balance, print_balance_violations
-=======
-from ..amr.forest import forest
-<<<<<<< HEAD
-from ..amr.adapt import adapt_mesh, adapt_sol,mark
->>>>>>> clean
-=======
-from ..amr.adapt import adapt_mesh, adapt_sol, mark, balance_mark, check_balance, enforce_balance
->>>>>>> balance
+from ..grid.mesh import *
+from ..amr.forest import *
+from ..amr.adapt import *
 from ..amr.projection import*
 from .utils import *
 
